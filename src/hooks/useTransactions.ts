@@ -143,18 +143,27 @@ export function useTransactions(accountId?: string) {
         member_id: t.member_id || null,
       }))
 
+      console.log('[useTransactions] Inserting transactions to account:', accountId)
+      console.log('[useTransactions] Sample insert data:', transactionsToInsert[0])
+
       const { data, error } = await supabase
         .from('transactions')
         .insert(transactionsToInsert)
         .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('[useTransactions] Supabase error:', error)
+        throw error
+      }
+
+      console.log('[useTransactions] Insert successful:', data?.length, 'transactions')
 
       // Refresh the list
       await refetchTransactions()
 
       return { error: null, count: data?.length || 0 }
     } catch (err) {
+      console.error('[useTransactions] Import failed:', err)
       return {
         error: err instanceof Error ? err.message : 'Failed to import transactions',
         count: 0

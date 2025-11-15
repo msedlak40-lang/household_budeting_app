@@ -157,15 +157,21 @@ export default function CSVImport() {
         }
       })
 
+      console.log('[CSVImport] Importing transactions:', transactionsToImport.length)
+      console.log('[CSVImport] Sample transaction:', transactionsToImport[0])
+
       const { error, count } = await importTransactions(selectedAccount, transactionsToImport)
 
       if (error) {
+        console.error('[CSVImport] Import error:', error)
         setError(error)
       } else {
+        console.log('[CSVImport] Successfully imported:', count, 'transactions')
         setImportResult({ count })
         setStep('complete')
       }
     } catch (err) {
+      console.error('[CSVImport] Exception during import:', err)
       setError(err instanceof Error ? err.message : 'Failed to import transactions')
     } finally {
       setImporting(false)
