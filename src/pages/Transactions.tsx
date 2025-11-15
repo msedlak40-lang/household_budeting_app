@@ -26,6 +26,7 @@ export default function Transactions() {
   const [savingRuleFor, setSavingRuleFor] = useState<string | null>(null)
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryParentId, setNewCategoryParentId] = useState('')
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null)
   const [saveNotification, setSaveNotification] = useState<string | null>(null)
 
@@ -105,9 +106,9 @@ export default function Transactions() {
     e.preventDefault()
     if (!newCategoryName.trim()) return
 
-    const { error } = await addCategory(newCategoryName.trim())
-    if (error) {
-      alert(`Error creating category: ${error}`)
+    const result = await addCategory(newCategoryName.trim(), newCategoryParentId || null)
+    if (result.error) {
+      alert(`Error creating category: ${result.error}`)
       return
     }
 
@@ -115,21 +116,16 @@ export default function Transactions() {
     await refetchCategories()
 
     // If there's a pending transaction, assign the new category
-    if (pendingTransactionId) {
-      // Get the newly created category (will be last in the list after refetch)
-      setTimeout(async () => {
-        const newCategory = categories.find(c => c.name === newCategoryName.trim())
-        if (newCategory) {
-          await updateTransaction(pendingTransactionId, {
-            category_id: newCategory.id,
-          })
-        }
-      }, 500)
+    if (pendingTransactionId && result.data) {
+      await updateTransaction(pendingTransactionId, {
+        category_id: result.data.id,
+      })
     }
 
     // Reset
     setShowAddCategory(false)
     setNewCategoryName('')
+    setNewCategoryParentId('')
     setPendingTransactionId(null)
   }
 
@@ -646,6 +642,27 @@ export default function Transactions() {
                   autoFocus
                 />
               </div>
+              <div className="mb-4">
+                <label htmlFor="newCategoryParent" className="block text-sm font-medium text-gray-700 mb-1">
+                  Parent Category (Optional)
+                </label>
+                <select
+                  id="newCategoryParent"
+                  value={newCategoryParentId}
+                  onChange={(e) => setNewCategoryParentId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">None (Create as parent category)</option>
+                  {getParentCategories().map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Select a parent to create a subcategory
+                </p>
+              </div>
               <div className="flex space-x-3">
                 <button
                   type="submit"
@@ -658,6 +675,7 @@ export default function Transactions() {
                   onClick={() => {
                     setShowAddCategory(false)
                     setNewCategoryName('')
+                    setNewCategoryParentId('')
                     setPendingTransactionId(null)
                   }}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"

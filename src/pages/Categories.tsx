@@ -2,10 +2,10 @@ import { useState } from 'react'
 import { useCategories } from '@/hooks/useCategories'
 
 export default function Categories() {
-  const { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryDisplayName } = useCategories()
+  const { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryDisplayName, getParentCategories } = useCategories()
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [formData, setFormData] = useState({ name: '' })
+  const [formData, setFormData] = useState({ name: '', parentCategoryId: '' })
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -35,15 +35,18 @@ export default function Categories() {
         setFormError(error)
       } else {
         setEditingId(null)
-        setFormData({ name: '' })
+        setFormData({ name: '', parentCategoryId: '' })
         setIsAdding(false)
       }
     } else {
-      const { error } = await addCategory(formData.name.trim())
+      const { error } = await addCategory(
+        formData.name.trim(),
+        formData.parentCategoryId || null
+      )
       if (error) {
         setFormError(error)
       } else {
-        setFormData({ name: '' })
+        setFormData({ name: '', parentCategoryId: '' })
         setIsAdding(false)
       }
     }
@@ -53,7 +56,7 @@ export default function Categories() {
 
   const handleEdit = (category: typeof categories[0]) => {
     setEditingId(category.id)
-    setFormData({ name: category.name })
+    setFormData({ name: category.name, parentCategoryId: category.parent_category_id || '' })
     setIsAdding(true)
     setFormError('')
   }
@@ -61,7 +64,7 @@ export default function Categories() {
   const handleCancel = () => {
     setIsAdding(false)
     setEditingId(null)
-    setFormData({ name: '' })
+    setFormData({ name: '', parentCategoryId: '' })
     setFormError('')
   }
 
@@ -130,12 +133,34 @@ export default function Categories() {
                 id="name"
                 type="text"
                 value={formData.name}
-                onChange={(e) => setFormData({ name: e.target.value })}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g., Groceries, Gas, Entertainment"
                 disabled={submitting}
                 autoFocus
               />
+            </div>
+            <div>
+              <label htmlFor="parentCategory" className="block text-sm font-medium text-gray-700 mb-1">
+                Parent Category (Optional)
+              </label>
+              <select
+                id="parentCategory"
+                value={formData.parentCategoryId}
+                onChange={(e) => setFormData({ ...formData, parentCategoryId: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={submitting}
+              >
+                <option value="">None (Create as parent category)</option>
+                {getParentCategories().map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Select a parent category to create a subcategory, or leave blank to create a parent category
+              </p>
             </div>
             <div className="flex space-x-3">
               <button

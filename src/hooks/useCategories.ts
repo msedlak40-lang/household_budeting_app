@@ -70,19 +70,26 @@ export function useCategories() {
     }
   }
 
-  const addCategory = async (name: string) => {
+  const addCategory = async (name: string, parentCategoryId?: string | null) => {
     if (!household) return { error: 'No household found' }
 
     try {
       const { data, error } = await supabase
         .from('categories')
-        .insert({ household_id: household.id, name })
-        .select()
+        .insert({
+          household_id: household.id,
+          name,
+          parent_category_id: parentCategoryId || null
+        })
+        .select(`
+          *,
+          parent:categories!parent_category_id(id, name)
+        `)
         .single()
 
       if (error) throw error
       setCategories([...categories, data].sort((a, b) => a.name.localeCompare(b.name)))
-      return { error: null }
+      return { error: null, data }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to add category' }
     }
