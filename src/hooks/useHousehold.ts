@@ -18,9 +18,12 @@ export function useHousehold() {
 
   useEffect(() => {
     if (!user) {
+      console.log('[useHousehold] No user found')
       setLoading(false)
       return
     }
+
+    console.log('[useHousehold] User found:', user.id)
 
     const initializeHousehold = async () => {
       try {
@@ -33,10 +36,12 @@ export function useHousehold() {
 
         if (fetchError && fetchError.code !== 'PGRST116') {
           // PGRST116 is "no rows returned", which is expected for new users
+          console.error('[useHousehold] Fetch error:', fetchError)
           throw fetchError
         }
 
         if (existingHousehold) {
+          console.log('[useHousehold] Household found:', existingHousehold)
           setHousehold(existingHousehold)
         } else {
           // Create a new household for this user

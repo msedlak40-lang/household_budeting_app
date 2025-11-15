@@ -20,9 +20,12 @@ export function useMembers() {
   useEffect(() => {
     const fetchMembers = async () => {
       if (!household) {
+        console.log('[useMembers] No household found')
         setLoading(false)
         return
       }
+
+      console.log('[useMembers] Fetching members for household:', household.id)
 
       try {
         const { data, error } = await supabase
@@ -32,6 +35,7 @@ export function useMembers() {
           .order('created_at', { ascending: true })
 
         if (error) throw error
+        console.log('[useMembers] Members fetched:', data?.length || 0, 'members')
         setMembers(data || [])
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch members')
