@@ -118,7 +118,7 @@ export function useCategories() {
   }
 
   const getCategoryDisplayName = (category: Category): string => {
-    if (category.parent) {
+    if (category.parent?.name) {
       return `${category.parent.name} → ${category.name}`
     }
     return category.name
