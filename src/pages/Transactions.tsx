@@ -14,6 +14,15 @@ export default function Transactions() {
   const { addRule } = useRules()
   const [showImport, setShowImport] = useState(false)
   const [filterAccount, setFilterAccount] = useState<string>('')
+  const [filterCategory, setFilterCategory] = useState<string>('')
+  const [filterMember, setFilterMember] = useState<string>('')
+  const [searchText, setSearchText] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [amountMin, setAmountMin] = useState('')
+  const [amountMax, setAmountMax] = useState('')
+  const [showUncategorizedOnly, setShowUncategorizedOnly] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
   const [savingRuleFor, setSavingRuleFor] = useState<string | null>(null)
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
@@ -154,9 +163,53 @@ export default function Transactions() {
     return amount < 0 ? `-$${formatted}` : `$${formatted}`
   }
 
-  const filteredTransactions = filterAccount
-    ? transactions.filter(t => t.account_id === filterAccount)
-    : transactions
+  const filteredTransactions = transactions.filter(t => {
+    // Account filter
+    if (filterAccount && t.account_id !== filterAccount) return false
+
+    // Category filter
+    if (filterCategory && t.category_id !== filterCategory) return false
+
+    // Member filter
+    if (filterMember && t.member_id !== filterMember) return false
+
+    // Search text (description or vendor)
+    if (searchText) {
+      const search = searchText.toLowerCase()
+      const description = t.description?.toLowerCase() || ''
+      const vendor = t.vendor?.toLowerCase() || ''
+      if (!description.includes(search) && !vendor.includes(search)) return false
+    }
+
+    // Date range
+    if (dateFrom && t.date < dateFrom) return false
+    if (dateTo && t.date > dateTo) return false
+
+    // Amount range
+    const absAmount = Math.abs(t.amount)
+    if (amountMin && absAmount < parseFloat(amountMin)) return false
+    if (amountMax && absAmount > parseFloat(amountMax)) return false
+
+    // Uncategorized only
+    if (showUncategorizedOnly && t.category_id) return false
+
+    return true
+  })
+
+  const hasActiveFilters = filterAccount || filterCategory || filterMember || searchText ||
+    dateFrom || dateTo || amountMin || amountMax || showUncategorizedOnly
+
+  const clearAllFilters = () => {
+    setFilterAccount('')
+    setFilterCategory('')
+    setFilterMember('')
+    setSearchText('')
+    setDateFrom('')
+    setDateTo('')
+    setAmountMin('')
+    setAmountMax('')
+    setShowUncategorizedOnly(false)
+  }
 
   if (loading) {
     return (
@@ -188,24 +241,172 @@ export default function Transactions() {
 
       {showImport && <CSVImport />}
 
-      {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="flex items-center space-x-4">
-          <label className="text-sm font-medium text-gray-700">Filter by Account:</label>
-          <select
-            value={filterAccount}
-            onChange={(e) => setFilterAccount(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">All Accounts</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name}
-              </option>
-            ))}
-          </select>
-          <span className="text-sm text-gray-500">
-            {filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}
+      {/* Search and Filter Controls */}
+      <div className="bg-white rounded-lg shadow mb-6">
+        {/* Search Bar */}
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center space-x-3">
+            <div className="flex-1">
+              <input
+                type="text"
+                placeholder="Search by description or vendor..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`px-4 py-2 rounded-md font-medium ${
+                showFilters
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {showFilters ? 'Hide Filters' : 'Show Filters'}
+              {hasActiveFilters && !showFilters && (
+                <span className="ml-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                  {[filterAccount, filterCategory, filterMember, searchText, dateFrom, dateTo, amountMin, amountMax, showUncategorizedOnly].filter(Boolean).length}
+                </span>
+              )}
+            </button>
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="px-4 py-2 bg-red-100 text-red-700 rounded-md hover:bg-red-200 font-medium"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <div className="p-6 bg-gray-50 border-t border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Account Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Account</label>
+                <select
+                  value={filterAccount}
+                  onChange={(e) => setFilterAccount(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Accounts</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Category Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Categories</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {getCategoryDisplayName(category)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Member Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Member</label>
+                <select
+                  value={filterMember}
+                  onChange={(e) => setFilterMember(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">All Members</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date From */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date From</label>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Date To */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date To</label>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Amount Min */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount Min</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={amountMin}
+                  onChange={(e) => setAmountMin(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Amount Max */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount Max</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={amountMax}
+                  onChange={(e) => setAmountMax(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Uncategorized Only */}
+              <div className="flex items-end">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showUncategorizedOnly}
+                    onChange={(e) => setShowUncategorizedOnly(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm font-medium text-gray-700">Show uncategorized only</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Results Count */}
+        <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+          <span className="text-sm text-gray-600">
+            Showing <span className="font-semibold">{filteredTransactions.length}</span> of{' '}
+            <span className="font-semibold">{transactions.length}</span> transaction
+            {transactions.length !== 1 ? 's' : ''}
+            {hasActiveFilters && ' (filtered)'}
           </span>
         </div>
       </div>
