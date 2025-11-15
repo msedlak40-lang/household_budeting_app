@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
 
 const navItems = [
   { path: '/', label: 'Dashboard' },
@@ -14,6 +15,13 @@ const navItems = [
 
 export default function Navigation() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { signOut, user } = useAuth()
+
+  const handleLogout = async () => {
+    await signOut()
+    navigate('/login')
+  }
 
   return (
     <nav className="bg-white border-b">
@@ -40,8 +48,12 @@ export default function Navigation() {
               ))}
             </div>
           </div>
-          <div className="flex items-center">
-            <button className="text-sm text-gray-600 hover:text-gray-900">
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-600">{user?.email}</span>
+            <button
+              onClick={handleLogout}
+              className="text-sm text-gray-600 hover:text-gray-900"
+            >
               Logout
             </button>
           </div>
