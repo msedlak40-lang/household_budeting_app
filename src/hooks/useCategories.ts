@@ -16,12 +16,36 @@ export function useCategories() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchCategories = async () => {
-    if (!household) {
-      setLoading(false)
-      return
+  useEffect(() => {
+    const fetchCategories = async () => {
+      if (!household) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('household_id', household.id)
+          .order('name', { ascending: true })
+
+        if (error) throw error
+        setCategories(data || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch categories')
+      } finally {
+        setLoading(false)
+      }
     }
 
+    fetchCategories()
+  }, [household])
+
+  const refetchCategories = async () => {
+    if (!household) return
+
+    setLoading(true)
     try {
       const { data, error } = await supabase
         .from('categories')
@@ -37,10 +61,6 @@ export function useCategories() {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    fetchCategories()
-  }, [household])
 
   const addCategory = async (name: string) => {
     if (!household) return { error: 'No household found' }
@@ -96,6 +116,6 @@ export function useCategories() {
     addCategory,
     updateCategory,
     deleteCategory,
-    refetch: fetchCategories,
+    refetch: refetchCategories,
   }
 }

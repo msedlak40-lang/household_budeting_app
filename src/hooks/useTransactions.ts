@@ -26,12 +26,63 @@ export function useTransactions(accountId?: string) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchTransactions = async () => {
-    if (!household) {
-      setLoading(false)
-      return
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      if (!household) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        let query = supabase
+          .from('transactions')
+          .select(`
+            *,
+            account:accounts(id, name),
+            category:categories(id, name),
+            member:household_members(id, name)
+          `)
+          .order('date', { ascending: false })
+
+        // Filter by account if accountId is provided
+        if (accountId) {
+          query = query.eq('account_id', accountId)
+        } else {
+          // Otherwise, get all transactions for all accounts in this household
+          const { data: accounts } = await supabase
+            .from('accounts')
+            .select('id')
+            .eq('household_id', household.id)
+
+          if (accounts && accounts.length > 0) {
+            const accountIds = accounts.map(a => a.id)
+            query = query.in('account_id', accountIds)
+          } else {
+            // No accounts, no transactions
+            setTransactions([])
+            setLoading(false)
+            return
+          }
+        }
+
+        const { data, error } = await query
+
+        if (error) throw error
+        setTransactions(data || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch transactions')
+      } finally {
+        setLoading(false)
+      }
     }
 
+    fetchTransactions()
+  }, [household, accountId])
+
+  const refetchTransactions = async () => {
+    if (!household) return
+
+    setLoading(true)
     try {
       let query = supabase
         .from('transactions')
@@ -43,11 +94,9 @@ export function useTransactions(accountId?: string) {
         `)
         .order('date', { ascending: false })
 
-      // Filter by account if accountId is provided
       if (accountId) {
         query = query.eq('account_id', accountId)
       } else {
-        // Otherwise, get all transactions for all accounts in this household
         const { data: accounts } = await supabase
           .from('accounts')
           .select('id')
@@ -57,7 +106,6 @@ export function useTransactions(accountId?: string) {
           const accountIds = accounts.map(a => a.id)
           query = query.in('account_id', accountIds)
         } else {
-          // No accounts, no transactions
           setTransactions([])
           setLoading(false)
           return
@@ -74,10 +122,6 @@ export function useTransactions(accountId?: string) {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    fetchTransactions()
-  }, [household, accountId])
 
   const importTransactions = async (
     accountId: string,
@@ -99,7 +143,7 @@ export function useTransactions(accountId?: string) {
       if (error) throw error
 
       // Refresh the list
-      await fetchTransactions()
+      await refetchTransactions()
 
       return { error: null, count: data?.length || 0 }
     } catch (err) {
@@ -155,6 +199,6 @@ export function useTransactions(accountId?: string) {
     importTransactions,
     updateTransaction,
     deleteTransaction,
-    refetch: fetchTransactions,
+    refetch: refetchTransactions,
   }
 }

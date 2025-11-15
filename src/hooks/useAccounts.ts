@@ -17,12 +17,36 @@ export function useAccounts() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchAccounts = async () => {
-    if (!household) {
-      setLoading(false)
-      return
+  useEffect(() => {
+    const fetchAccounts = async () => {
+      if (!household) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('household_id', household.id)
+          .order('created_at', { ascending: true })
+
+        if (error) throw error
+        setAccounts(data || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch accounts')
+      } finally {
+        setLoading(false)
+      }
     }
 
+    fetchAccounts()
+  }, [household])
+
+  const refetchAccounts = async () => {
+    if (!household) return
+
+    setLoading(true)
     try {
       const { data, error } = await supabase
         .from('accounts')
@@ -38,10 +62,6 @@ export function useAccounts() {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    fetchAccounts()
-  }, [household])
 
   const addAccount = async (name: string, accountType: string | null) => {
     if (!household) return { error: 'No household found' }
@@ -97,6 +117,6 @@ export function useAccounts() {
     addAccount,
     updateAccount,
     deleteAccount,
-    refetch: fetchAccounts,
+    refetch: refetchAccounts,
   }
 }

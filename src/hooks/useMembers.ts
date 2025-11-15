@@ -17,12 +17,36 @@ export function useMembers() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const fetchMembers = async () => {
-    if (!household) {
-      setLoading(false)
-      return
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!household) {
+        setLoading(false)
+        return
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('household_members')
+          .select('*')
+          .eq('household_id', household.id)
+          .order('created_at', { ascending: true })
+
+        if (error) throw error
+        setMembers(data || [])
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch members')
+      } finally {
+        setLoading(false)
+      }
     }
 
+    fetchMembers()
+  }, [household])
+
+  const refetchMembers = async () => {
+    if (!household) return
+
+    setLoading(true)
     try {
       const { data, error } = await supabase
         .from('household_members')
@@ -38,10 +62,6 @@ export function useMembers() {
       setLoading(false)
     }
   }
-
-  useEffect(() => {
-    fetchMembers()
-  }, [household])
 
   const addMember = async (name: string, role: 'adult' | 'child') => {
     if (!household) return { error: 'No household found' }
@@ -97,6 +117,6 @@ export function useMembers() {
     addMember,
     updateMember,
     deleteMember,
-    refetch: fetchMembers,
+    refetch: refetchMembers,
   }
 }
