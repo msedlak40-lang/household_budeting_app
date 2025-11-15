@@ -1,15 +1,9 @@
 -- =====================================================
--- CATEGORY SEED DATA
+-- CATEGORY SEED DATA (SIMPLIFIED)
 -- =====================================================
--- Run this in your Supabase SQL Editor to populate suggested categories
--- This will create parent categories and subcategories for your household
+-- This version automatically finds your household
+-- No authentication needed!
 -- =====================================================
-
--- First, get your household ID (replace with your actual household_id)
--- You can find this by running: SELECT id, name FROM households WHERE created_by = auth.uid();
-
--- For this script to work, replace 'YOUR_HOUSEHOLD_ID_HERE' with your actual household UUID
--- Example: '123e4567-e89b-12d3-a456-426614174000'
 
 DO $$
 DECLARE
@@ -32,11 +26,11 @@ DECLARE
   savings_id UUID;
   misc_id UUID;
 BEGIN
-  -- Get the first household for the current user
-  SELECT id INTO household_uuid FROM households WHERE created_by = auth.uid() ORDER BY created_at ASC LIMIT 1;
+  -- Get the first household (or you can specify your household_id here)
+  SELECT id INTO household_uuid FROM households ORDER BY created_at ASC LIMIT 1;
 
   IF household_uuid IS NULL THEN
-    RAISE EXCEPTION 'No household found for current user';
+    RAISE EXCEPTION 'No household found in database. Please create a household first.';
   END IF;
 
   RAISE NOTICE 'Using household: %', household_uuid;
@@ -366,14 +360,19 @@ BEGIN
     ON CONFLICT (household_id, name) DO NOTHING;
   END IF;
 
-  RAISE NOTICE 'Category seed complete! Check your categories table.';
+  RAISE NOTICE '✅ Category seed complete!';
+  RAISE NOTICE '📊 Created 17 parent categories with 70+ subcategories';
+  RAISE NOTICE '🏠 Household ID: %', household_uuid;
 END $$;
 
 -- =====================================================
--- COMPLETED!
+-- VERIFY YOUR CATEGORIES
 -- =====================================================
--- View your categories:
--- SELECT c.name as category, p.name as parent
+-- Run this to see all your categories with parent-child relationships:
+--
+-- SELECT
+--   CASE WHEN p.name IS NULL THEN c.name ELSE '  → ' || c.name END as category,
+--   CASE WHEN p.name IS NULL THEN '📁 Parent' ELSE '📄 ' || p.name END as type
 -- FROM categories c
 -- LEFT JOIN categories p ON c.parent_category_id = p.id
--- ORDER BY COALESCE(p.name, c.name), c.name;
+-- ORDER BY COALESCE(p.name, c.name), p.name NULLS FIRST, c.name;
