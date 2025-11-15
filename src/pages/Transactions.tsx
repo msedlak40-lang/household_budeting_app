@@ -27,6 +27,13 @@ export default function Transactions() {
   const [showAddCategory, setShowAddCategory] = useState(false)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null)
+  const [saveNotification, setSaveNotification] = useState<string | null>(null)
+
+  // Helper to show save notifications
+  const showSaveNotification = (message: string) => {
+    setSaveNotification(message)
+    setTimeout(() => setSaveNotification(null), 2000)
+  }
 
   const handleDelete = async (id: string, description: string) => {
     if (confirm(`Are you sure you want to delete "${description}"?`)) {
@@ -51,6 +58,8 @@ export default function Transactions() {
     })
     if (error) {
       alert(`Error: ${error}`)
+    } else {
+      showSaveNotification('Category saved!')
     }
   }
 
@@ -67,6 +76,8 @@ export default function Transactions() {
     })
     if (error) {
       alert(`Error: ${error}`)
+    } else {
+      showSaveNotification('Subcategory saved!')
     }
   }
 
@@ -128,6 +139,8 @@ export default function Transactions() {
     })
     if (error) {
       alert(`Error: ${error}`)
+    } else {
+      showSaveNotification('Member saved!')
     }
   }
 
@@ -596,7 +609,20 @@ export default function Transactions() {
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
           <p className="text-sm text-blue-900">
             <strong>Next step:</strong> Go to the Inbox page to categorize your transactions and create rules for automatic categorization.
+            Once categorized, view your spending analysis on the Dashboard!
           </p>
+        </div>
+      )}
+
+      {/* Save Notification Toast */}
+      {saveNotification && (
+        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in">
+          <div className="flex items-center space-x-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="font-medium">{saveNotification}</span>
+          </div>
         </div>
       )}
 

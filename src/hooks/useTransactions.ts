@@ -217,13 +217,28 @@ export function useTransactions(accountId?: string) {
 
       if (error) throw error
 
-      // Update local state
-      setTransactions(transactions.map(t =>
-        t.id === id ? { ...t, ...updates } : t
-      ))
+      // Refetch the updated transaction with full details
+      const { data: updatedTransaction } = await supabase
+        .from('transactions')
+        .select(`
+          *,
+          account:accounts(id, name),
+          category:categories(id, name),
+          member:household_members(id, name)
+        `)
+        .eq('id', id)
+        .single()
+
+      // Update local state with full transaction details
+      if (updatedTransaction) {
+        setTransactions(transactions.map(t =>
+          t.id === id ? updatedTransaction : t
+        ))
+      }
 
       return { error: null }
     } catch (err) {
+      console.error('[useTransactions] Update failed:', err)
       return { error: err instanceof Error ? err.message : 'Failed to update transaction' }
     }
   }
