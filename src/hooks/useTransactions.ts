@@ -125,7 +125,13 @@ export function useTransactions(accountId?: string) {
 
   const importTransactions = async (
     accountId: string,
-    transactions: Array<{ date: string; description: string; amount: number }>
+    transactions: Array<{
+      date: string
+      description: string
+      amount: number
+      category_id?: string | null
+      member_id?: string | null
+    }>
   ) => {
     try {
       const transactionsToInsert = transactions.map(t => ({
@@ -133,6 +139,8 @@ export function useTransactions(accountId?: string) {
         date: t.date,
         description: t.description,
         amount: t.amount,
+        category_id: t.category_id || null,
+        member_id: t.member_id || null,
       }))
 
       const { data, error } = await supabase

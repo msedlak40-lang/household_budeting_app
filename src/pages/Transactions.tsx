@@ -1,13 +1,20 @@
 import { useState } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useAccounts } from '@/hooks/useAccounts'
+import { useCategories } from '@/hooks/useCategories'
+import { useMembers } from '@/hooks/useMembers'
+import { useRules } from '@/hooks/useRules'
 import CSVImport from '@/components/transactions/CSVImport'
 
 export default function Transactions() {
   const { accounts } = useAccounts()
-  const { transactions, loading, error, deleteTransaction } = useTransactions()
+  const { transactions, loading, error, updateTransaction, deleteTransaction } = useTransactions()
+  const { categories } = useCategories()
+  const { members } = useMembers()
+  const { addRule } = useRules()
   const [showImport, setShowImport] = useState(false)
   const [filterAccount, setFilterAccount] = useState<string>('')
+  const [savingRuleFor, setSavingRuleFor] = useState<string | null>(null)
 
   const handleDelete = async (id: string, description: string) => {
     if (confirm(`Are you sure you want to delete "${description}"?`)) {
@@ -15,6 +22,46 @@ export default function Transactions() {
       if (error) {
         alert(`Error: ${error}`)
       }
+    }
+  }
+
+  const handleCategoryChange = async (transactionId: string, categoryId: string) => {
+    const { error } = await updateTransaction(transactionId, {
+      category_id: categoryId || null,
+    })
+    if (error) {
+      alert(`Error: ${error}`)
+    }
+  }
+
+  const handleMemberChange = async (transactionId: string, memberId: string) => {
+    const { error } = await updateTransaction(transactionId, {
+      member_id: memberId || null,
+    })
+    if (error) {
+      alert(`Error: ${error}`)
+    }
+  }
+
+  const handleCreateRule = async (transaction: typeof transactions[0]) => {
+    if (!transaction.category_id) {
+      alert('Please assign a category first before creating a rule')
+      return
+    }
+
+    setSavingRuleFor(transaction.id)
+
+    try {
+      await addRule(
+        transaction.description,
+        transaction.category_id,
+        transaction.member_id
+      )
+      alert(`Rule created! Future transactions with "${transaction.description}" will be auto-categorized.`)
+    } catch (error) {
+      alert(`Error creating rule: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setSavingRuleFor(null)
     }
   }
 
@@ -115,6 +162,9 @@ export default function Transactions() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Category
                   </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Member
+                  </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Amount
                   </th>
@@ -136,20 +186,47 @@ export default function Transactions() {
                       {transaction.account?.name || '—'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {transaction.category ? (
-                        <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {transaction.category.name}
-                        </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">Uncategorized</span>
-                      )}
+                      <select
+                        value={transaction.category_id || ''}
+                        onChange={(e) => handleCategoryChange(transaction.id, e.target.value)}
+                        className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Uncategorized</option>
+                        {categories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <select
+                        value={transaction.member_id || ''}
+                        onChange={(e) => handleMemberChange(transaction.id, e.target.value)}
+                        className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">None</option>
+                        {members.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}
+                          </option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
                       <span className={transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}>
                         {formatCurrency(transaction.amount)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                      <button
+                        onClick={() => handleCreateRule(transaction)}
+                        disabled={!transaction.category_id || savingRuleFor === transaction.id}
+                        className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        title={transaction.category_id ? 'Create rule from this transaction' : 'Assign a category first'}
+                      >
+                        {savingRuleFor === transaction.id ? 'Saving...' : 'Create Rule'}
+                      </button>
                       <button
                         onClick={() => handleDelete(transaction.id, transaction.description)}
                         className="text-red-600 hover:text-red-900"

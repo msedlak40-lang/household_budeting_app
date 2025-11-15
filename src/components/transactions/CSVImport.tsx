@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import Papa from 'papaparse'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useTransactions } from '@/hooks/useTransactions'
+import { useRules } from '@/hooks/useRules'
 
 interface ParsedRow {
   [key: string]: string
@@ -10,6 +11,7 @@ interface ParsedRow {
 export default function CSVImport() {
   const { accounts } = useAccounts()
   const { importTransactions } = useTransactions()
+  const { rules } = useRules()
 
   const [selectedAccount, setSelectedAccount] = useState('')
   const [csvData, setCsvData] = useState<ParsedRow[]>([])
@@ -116,6 +118,22 @@ export default function CSVImport() {
     return date.toISOString().split('T')[0]
   }
 
+  const applyCategorization = (description: string): { categoryId: string | null; memberId: string | null } => {
+    // Check each rule to see if it matches the description (case-insensitive)
+    const lowerDescription = description.toLowerCase()
+
+    for (const rule of rules) {
+      if (lowerDescription.includes(rule.pattern.toLowerCase())) {
+        return {
+          categoryId: rule.category_id,
+          memberId: rule.member_id,
+        }
+      }
+    }
+
+    return { categoryId: null, memberId: null }
+  }
+
   const handleImport = async () => {
     if (!selectedAccount) {
       setError('Please select an account')
@@ -126,11 +144,18 @@ export default function CSVImport() {
     setError('')
 
     try {
-      const transactionsToImport = csvData.map(row => ({
-        date: parseDate(row[columnMapping.date]),
-        description: row[columnMapping.description],
-        amount: parseAmount(row[columnMapping.amount]),
-      }))
+      const transactionsToImport = csvData.map(row => {
+        const description = row[columnMapping.description]
+        const { categoryId, memberId } = applyCategorization(description)
+
+        return {
+          date: parseDate(row[columnMapping.date]),
+          description,
+          amount: parseAmount(row[columnMapping.amount]),
+          category_id: categoryId,
+          member_id: memberId,
+        }
+      })
 
       const { error, count } = await importTransactions(selectedAccount, transactionsToImport)
 

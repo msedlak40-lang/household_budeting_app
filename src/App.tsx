@@ -6,6 +6,7 @@ import Login from './pages/Login'
 import Members from './pages/Members'
 import Accounts from './pages/Accounts'
 import Categories from './pages/Categories'
+import Rules from './pages/Rules'
 import Transactions from './pages/Transactions'
 import Inbox from './pages/Inbox'
 import Recurring from './pages/Recurring'
@@ -27,6 +28,7 @@ function App() {
         <Route path="members" element={<Members />} />
         <Route path="accounts" element={<Accounts />} />
         <Route path="categories" element={<Categories />} />
+        <Route path="rules" element={<Rules />} />
         <Route path="transactions" element={<Transactions />} />
         <Route path="inbox" element={<Inbox />} />
         <Route path="recurring" element={<Recurring />} />

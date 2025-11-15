@@ -7,6 +7,7 @@ const navItems = [
   { path: '/members', label: 'Members' },
   { path: '/accounts', label: 'Accounts' },
   { path: '/categories', label: 'Categories' },
+  { path: '/rules', label: 'Rules' },
   { path: '/transactions', label: 'Transactions' },
   { path: '/inbox', label: 'Inbox' },
   { path: '/recurring', label: 'Recurring' },
