@@ -117,13 +117,6 @@ export function useCategories() {
     }
   }
 
-  const getCategoryDisplayName = (category: Category): string => {
-    if (category.parent?.name) {
-      return `${category.parent.name} → ${category.name}`
-    }
-    return category.name
-  }
-
   // Sort categories: parents first, then children under their parents
   const sortedCategories = [...categories].sort((a, b) => {
     // If both are parents or both are children at same level, sort by name
@@ -145,6 +138,29 @@ export function useCategories() {
     return a.name.localeCompare(b.name)
   })
 
+  const getCategoryDisplayName = (category: Category): string => {
+    if (category.parent?.name) {
+      return `${category.parent.name} → ${category.name}`
+    }
+    return category.name
+  }
+
+  // Get only parent categories (no parent_category_id)
+  const getParentCategories = (): Category[] => {
+    return sortedCategories.filter(c => !c.parent_category_id)
+  }
+
+  // Get subcategories for a given parent
+  const getSubcategories = (parentId: string): Category[] => {
+    return sortedCategories.filter(c => c.parent_category_id === parentId)
+  }
+
+  // Get the category object by id
+  const getCategoryById = (id: string | null): Category | null => {
+    if (!id) return null
+    return sortedCategories.find(c => c.id === id) || null
+  }
+
   return {
     categories: sortedCategories,
     loading,
@@ -154,5 +170,8 @@ export function useCategories() {
     deleteCategory,
     refetch: refetchCategories,
     getCategoryDisplayName,
+    getParentCategories,
+    getSubcategories,
+    getCategoryById,
   }
 }

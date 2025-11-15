@@ -9,7 +9,7 @@ import CSVImport from '@/components/transactions/CSVImport'
 export default function Transactions() {
   const { accounts } = useAccounts()
   const { transactions, loading, error, updateTransaction, deleteTransaction } = useTransactions()
-  const { categories, addCategory, refetch: refetchCategories, getCategoryDisplayName } = useCategories()
+  const { categories, addCategory, refetch: refetchCategories, getCategoryDisplayName, getParentCategories, getSubcategories, getCategoryById } = useCategories()
   const { members } = useMembers()
   const { addRule } = useRules()
   const [showImport, setShowImport] = useState(false)
@@ -28,20 +28,57 @@ export default function Transactions() {
     }
   }
 
-  const handleCategoryChange = async (transactionId: string, categoryId: string) => {
+  const handleParentCategoryChange = async (transactionId: string, parentCategoryId: string) => {
     // Check if user wants to add a new category
-    if (categoryId === '__ADD_NEW__') {
+    if (parentCategoryId === '__ADD_NEW__') {
       setPendingTransactionId(transactionId)
       setShowAddCategory(true)
       return
     }
 
+    // When parent changes, set it as the category (no subcategory selected)
     const { error } = await updateTransaction(transactionId, {
-      category_id: categoryId || null,
+      category_id: parentCategoryId || null,
     })
     if (error) {
       alert(`Error: ${error}`)
     }
+  }
+
+  const handleSubcategoryChange = async (transactionId: string, subcategoryId: string) => {
+    // Get current transaction to find its current parent category
+    const transaction = transactions.find(t => t.id === transactionId)
+    if (!transaction) return
+
+    // If subcategory is selected, use it; otherwise keep parent category
+    const categoryIdToSet = subcategoryId || transaction.category_id
+
+    const { error } = await updateTransaction(transactionId, {
+      category_id: categoryIdToSet,
+    })
+    if (error) {
+      alert(`Error: ${error}`)
+    }
+  }
+
+  // Helper to get parent and subcategory for a transaction
+  const getCategorySelection = (transaction: typeof transactions[0]) => {
+    if (!transaction.category_id) {
+      return { parentId: '', subcategoryId: '' }
+    }
+
+    const category = getCategoryById(transaction.category_id)
+    if (!category) {
+      return { parentId: '', subcategoryId: '' }
+    }
+
+    // If this is a subcategory, return its parent and itself
+    if (category.parent_category_id) {
+      return { parentId: category.parent_category_id, subcategoryId: category.id }
+    }
+
+    // If this is a parent category, return it as parent with no subcategory
+    return { parentId: category.id, subcategoryId: '' }
   }
 
   const handleAddCategorySubmit = async (e: React.FormEvent) => {
@@ -210,6 +247,9 @@ export default function Transactions() {
                     Category
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
+                    Subcategory
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Member
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
@@ -234,20 +274,45 @@ export default function Transactions() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <select
-                        value={transaction.category_id || ''}
-                        onChange={(e) => handleCategoryChange(transaction.id, e.target.value)}
+                        value={getCategorySelection(transaction).parentId}
+                        onChange={(e) => handleParentCategoryChange(transaction.id, e.target.value)}
                         className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        <option value="">Uncategorized</option>
-                        {categories.map((category) => (
+                        <option value="">None</option>
+                        {getParentCategories().map((category) => (
                           <option key={category.id} value={category.id}>
-                            {getCategoryDisplayName(category)}
+                            {category.name}
                           </option>
                         ))}
                         <option value="__ADD_NEW__" className="font-semibold text-blue-600">
-                          + Add New Category
+                          + Add New
                         </option>
                       </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {(() => {
+                        const { parentId } = getCategorySelection(transaction)
+                        const subcategories = parentId ? getSubcategories(parentId) : []
+
+                        if (subcategories.length === 0) {
+                          return <span className="text-xs text-gray-400">—</span>
+                        }
+
+                        return (
+                          <select
+                            value={getCategorySelection(transaction).subcategoryId}
+                            onChange={(e) => handleSubcategoryChange(transaction.id, e.target.value)}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">None</option>
+                            {subcategories.map((subcategory) => (
+                              <option key={subcategory.id} value={subcategory.id}>
+                                {subcategory.name}
+                              </option>
+                            ))}
+                          </select>
+                        )
+                      })()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <select

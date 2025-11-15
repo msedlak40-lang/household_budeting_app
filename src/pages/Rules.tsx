@@ -5,7 +5,7 @@ import { useMembers } from '@/hooks/useMembers'
 
 export default function Rules() {
   const { rules, loading, addRule, updateRule, deleteRule } = useRules()
-  const { categories, getCategoryDisplayName } = useCategories()
+  const { categories, getCategoryDisplayName, getParentCategories, getSubcategories, getCategoryById } = useCategories()
   const { members } = useMembers()
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -14,6 +14,7 @@ export default function Rules() {
     category_id: '',
     member_id: '',
   })
+  const [selectedParentCategory, setSelectedParentCategory] = useState('')
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -66,6 +67,17 @@ export default function Rules() {
       category_id: rule.category_id,
       member_id: rule.member_id || '',
     })
+
+    // Determine parent category for editing
+    if (rule.category_id) {
+      const category = getCategoryById(rule.category_id)
+      if (category?.parent_category_id) {
+        setSelectedParentCategory(category.parent_category_id)
+      } else {
+        setSelectedParentCategory(rule.category_id)
+      }
+    }
+
     setIsAdding(true)
     setFormError('')
   }
@@ -74,7 +86,18 @@ export default function Rules() {
     setIsAdding(false)
     setEditingId(null)
     setFormData({ pattern: '', category_id: '', member_id: '' })
+    setSelectedParentCategory('')
     setFormError('')
+  }
+
+  const handleParentCategoryChange = (parentId: string) => {
+    setSelectedParentCategory(parentId)
+    // If parent changes, reset the subcategory selection
+    // Only keep category_id if it's still valid for the new parent
+    const currentCategory = getCategoryById(formData.category_id)
+    if (!currentCategory || currentCategory.parent_category_id !== parentId) {
+      setFormData({ ...formData, category_id: parentId })
+    }
   }
 
   const handleDelete = async (id: string, pattern: string) => {
@@ -121,7 +144,10 @@ export default function Rules() {
         </div>
         {!isAdding && (
           <button
-            onClick={() => setIsAdding(true)}
+            onClick={() => {
+              setSelectedParentCategory('')
+              setIsAdding(true)
+            }}
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             Add Rule
@@ -160,24 +186,49 @@ export default function Rules() {
             </div>
 
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="parent-category" className="block text-sm font-medium text-gray-700 mb-1">
                 Category (optional)
               </label>
               <select
-                id="category"
-                value={formData.category_id}
-                onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                id="parent-category"
+                value={selectedParentCategory}
+                onChange={(e) => handleParentCategoryChange(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={submitting}
               >
                 <option value="">None (member-only rule)</option>
-                {categories.map((category) => (
+                {getParentCategories().map((category) => (
                   <option key={category.id} value={category.id}>
-                    {getCategoryDisplayName(category)}
+                    {category.name}
                   </option>
                 ))}
               </select>
             </div>
+
+            {selectedParentCategory && getSubcategories(selectedParentCategory).length > 0 && (
+              <div>
+                <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 mb-1">
+                  Subcategory (optional)
+                </label>
+                <select
+                  id="subcategory"
+                  value={(() => {
+                    const category = getCategoryById(formData.category_id)
+                    return category?.parent_category_id === selectedParentCategory ? formData.category_id : ''
+                  })()}
+                  onChange={(e) => setFormData({ ...formData, category_id: e.target.value || selectedParentCategory })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  disabled={submitting}
+                >
+                  <option value="">None (use parent category)</option>
+                  {getSubcategories(selectedParentCategory).map((subcategory) => (
+                    <option key={subcategory.id} value={subcategory.id}>
+                      {subcategory.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label htmlFor="member" className="block text-sm font-medium text-gray-700 mb-1">
@@ -228,7 +279,10 @@ export default function Rules() {
           </p>
           {!isAdding && (
             <button
-              onClick={() => setIsAdding(true)}
+              onClick={() => {
+                setSelectedParentCategory('')
+                setIsAdding(true)
+              }}
               className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
               Add Your First Rule
