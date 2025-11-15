@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useCategories } from '@/hooks/useCategories'
+import { suggestCategory, suggestCategories } from '@/lib/categorySuggestions'
 
 export default function Categories() {
   const { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryDisplayName, getParentCategories } = useCategories()
@@ -8,6 +9,26 @@ export default function Categories() {
   const [formData, setFormData] = useState({ name: '', parentCategoryId: '' })
   const [formError, setFormError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+
+  // Update suggestions when name changes
+  useEffect(() => {
+    if (formData.name.trim().length > 2 && !editingId) {
+      const suggested = suggestCategories(formData.name, 3)
+      setSuggestions(suggested)
+    } else {
+      setSuggestions([])
+    }
+  }, [formData.name, editingId])
+
+  const handleSuggestionClick = (suggestedCategory: string) => {
+    // Find the category ID for the suggested parent
+    const parentCategory = getParentCategories().find(c => c.name === suggestedCategory)
+    if (parentCategory) {
+      setFormData({ ...formData, parentCategoryId: parentCategory.id })
+      setSuggestions([])
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -139,6 +160,28 @@ export default function Categories() {
                 disabled={submitting}
                 autoFocus
               />
+              {suggestions.length > 0 && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <p className="text-xs font-medium text-blue-900 mb-2">
+                    💡 Suggested parent categories for "{formData.name}":
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestions.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => handleSuggestionClick(suggestion)}
+                        className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        Use "{suggestion}"
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-blue-700 mt-2">
+                    Click a suggestion to set it as the parent category, preventing duplicate categories.
+                  </p>
+                </div>
+              )}
             </div>
             <div>
               <label htmlFor="parentCategory" className="block text-sm font-medium text-gray-700 mb-1">

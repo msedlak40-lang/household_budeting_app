@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useCategories } from '@/hooks/useCategories'
 import { useMembers } from '@/hooks/useMembers'
 import { useRules } from '@/hooks/useRules'
+import { suggestCategories } from '@/lib/categorySuggestions'
 import CSVImport from '@/components/transactions/CSVImport'
 
 export default function Transactions() {
@@ -29,6 +30,25 @@ export default function Transactions() {
   const [newCategoryParentId, setNewCategoryParentId] = useState('')
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null)
   const [saveNotification, setSaveNotification] = useState<string | null>(null)
+  const [categorySuggestions, setCategorySuggestions] = useState<string[]>([])
+
+  // Update category suggestions when name changes
+  useEffect(() => {
+    if (newCategoryName.trim().length > 2) {
+      const suggested = suggestCategories(newCategoryName, 3)
+      setCategorySuggestions(suggested)
+    } else {
+      setCategorySuggestions([])
+    }
+  }, [newCategoryName])
+
+  const handleCategorySuggestionClick = (suggestedCategory: string) => {
+    const parentCategory = getParentCategories().find(c => c.name === suggestedCategory)
+    if (parentCategory) {
+      setNewCategoryParentId(parentCategory.id)
+      setCategorySuggestions([])
+    }
+  }
 
   // Helper to show save notifications
   const showSaveNotification = (message: string) => {
@@ -127,6 +147,7 @@ export default function Transactions() {
     setNewCategoryName('')
     setNewCategoryParentId('')
     setPendingTransactionId(null)
+    setCategorySuggestions([])
   }
 
   const handleMemberChange = async (transactionId: string, memberId: string) => {
@@ -641,6 +662,28 @@ export default function Transactions() {
                   placeholder="e.g., Groceries, Gas, Entertainment"
                   autoFocus
                 />
+                {categorySuggestions.length > 0 && (
+                  <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-xs font-medium text-blue-900 mb-2">
+                      💡 Suggested parent categories for "{newCategoryName}":
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {categorySuggestions.map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => handleCategorySuggestionClick(suggestion)}
+                          className="px-3 py-1 bg-blue-600 text-white text-xs rounded-md hover:bg-blue-700 transition-colors"
+                        >
+                          Use "{suggestion}"
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-blue-700 mt-2">
+                      Click to set as parent category, preventing duplicates.
+                    </p>
+                  </div>
+                )}
               </div>
               <div className="mb-4">
                 <label htmlFor="newCategoryParent" className="block text-sm font-medium text-gray-700 mb-1">
@@ -677,6 +720,7 @@ export default function Transactions() {
                     setNewCategoryName('')
                     setNewCategoryParentId('')
                     setPendingTransactionId(null)
+                    setCategorySuggestions([])
                   }}
                   className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
                 >
