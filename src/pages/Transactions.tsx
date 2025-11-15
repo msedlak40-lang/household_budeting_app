@@ -9,12 +9,15 @@ import CSVImport from '@/components/transactions/CSVImport'
 export default function Transactions() {
   const { accounts } = useAccounts()
   const { transactions, loading, error, updateTransaction, deleteTransaction } = useTransactions()
-  const { categories } = useCategories()
+  const { categories, addCategory, refetch: refetchCategories } = useCategories()
   const { members } = useMembers()
   const { addRule } = useRules()
   const [showImport, setShowImport] = useState(false)
   const [filterAccount, setFilterAccount] = useState<string>('')
   const [savingRuleFor, setSavingRuleFor] = useState<string | null>(null)
+  const [showAddCategory, setShowAddCategory] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null)
 
   const handleDelete = async (id: string, description: string) => {
     if (confirm(`Are you sure you want to delete "${description}"?`)) {
@@ -26,12 +29,51 @@ export default function Transactions() {
   }
 
   const handleCategoryChange = async (transactionId: string, categoryId: string) => {
+    // Check if user wants to add a new category
+    if (categoryId === '__ADD_NEW__') {
+      setPendingTransactionId(transactionId)
+      setShowAddCategory(true)
+      return
+    }
+
     const { error } = await updateTransaction(transactionId, {
       category_id: categoryId || null,
     })
     if (error) {
       alert(`Error: ${error}`)
     }
+  }
+
+  const handleAddCategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newCategoryName.trim()) return
+
+    const { error } = await addCategory(newCategoryName.trim())
+    if (error) {
+      alert(`Error creating category: ${error}`)
+      return
+    }
+
+    // Refresh categories
+    await refetchCategories()
+
+    // If there's a pending transaction, assign the new category
+    if (pendingTransactionId) {
+      // Get the newly created category (will be last in the list after refetch)
+      setTimeout(async () => {
+        const newCategory = categories.find(c => c.name === newCategoryName.trim())
+        if (newCategory) {
+          await updateTransaction(pendingTransactionId, {
+            category_id: newCategory.id,
+          })
+        }
+      }, 500)
+    }
+
+    // Reset
+    setShowAddCategory(false)
+    setNewCategoryName('')
+    setPendingTransactionId(null)
   }
 
   const handleMemberChange = async (transactionId: string, memberId: string) => {
@@ -153,27 +195,27 @@ export default function Transactions() {
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+              <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Description
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Account
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Category
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Member
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Amount
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50">
                     Actions
                   </th>
                 </tr>
@@ -202,6 +244,9 @@ export default function Transactions() {
                             {category.name}
                           </option>
                         ))}
+                        <option value="__ADD_NEW__" className="font-semibold text-blue-600">
+                          + Add New Category
+                        </option>
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -265,6 +310,50 @@ export default function Transactions() {
           <p className="text-sm text-blue-900">
             <strong>Next step:</strong> Go to the Inbox page to categorize your transactions and create rules for automatic categorization.
           </p>
+        </div>
+      )}
+
+      {/* Add Category Modal */}
+      {showAddCategory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h2 className="text-xl font-semibold mb-4">Add New Category</h2>
+            <form onSubmit={handleAddCategorySubmit}>
+              <div className="mb-4">
+                <label htmlFor="newCategoryName" className="block text-sm font-medium text-gray-700 mb-1">
+                  Category Name
+                </label>
+                <input
+                  id="newCategoryName"
+                  type="text"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g., Groceries, Gas, Entertainment"
+                  autoFocus
+                />
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Add Category
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddCategory(false)
+                    setNewCategoryName('')
+                    setPendingTransactionId(null)
+                  }}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
