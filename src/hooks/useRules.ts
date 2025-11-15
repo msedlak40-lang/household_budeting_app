@@ -50,7 +50,7 @@ export function useRules() {
 
   const addRule = async (
     pattern: string,
-    categoryId: string,
+    categoryId: string | null,
     memberId: string | null = null
   ) => {
     if (!household) throw new Error('No household found')

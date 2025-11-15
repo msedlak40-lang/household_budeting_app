@@ -44,8 +44,8 @@ export default function Transactions() {
   }
 
   const handleCreateRule = async (transaction: typeof transactions[0]) => {
-    if (!transaction.category_id) {
-      alert('Please assign a category first before creating a rule')
+    if (!transaction.category_id && !transaction.member_id) {
+      alert('Please assign a category or member first before creating a rule')
       return
     }
 
@@ -54,10 +54,15 @@ export default function Transactions() {
     try {
       await addRule(
         transaction.description,
-        transaction.category_id,
+        transaction.category_id || null,
         transaction.member_id
       )
-      alert(`Rule created! Future transactions with "${transaction.description}" will be auto-categorized.`)
+      const ruleType = transaction.category_id && transaction.member_id
+        ? 'category and member'
+        : transaction.category_id
+        ? 'category'
+        : 'member'
+      alert(`Rule created! Future transactions with "${transaction.description}" will be auto-assigned to ${ruleType}.`)
     } catch (error) {
       alert(`Error creating rule: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
@@ -221,9 +226,9 @@ export default function Transactions() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       <button
                         onClick={() => handleCreateRule(transaction)}
-                        disabled={!transaction.category_id || savingRuleFor === transaction.id}
+                        disabled={(!transaction.category_id && !transaction.member_id) || savingRuleFor === transaction.id}
                         className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed"
-                        title={transaction.category_id ? 'Create rule from this transaction' : 'Assign a category first'}
+                        title={(transaction.category_id || transaction.member_id) ? 'Create rule from this transaction' : 'Assign a category or member first'}
                       >
                         {savingRuleFor === transaction.id ? 'Saving...' : 'Create Rule'}
                       </button>

@@ -20,6 +20,7 @@ export default function CSVImport() {
     date: '',
     description: '',
     amount: '',
+    cardNumber: '',
   })
   const [step, setStep] = useState<'upload' | 'map' | 'preview' | 'complete'>('upload')
   const [importing, setImporting] = useState(false)
@@ -73,10 +74,19 @@ export default function CSVImport() {
           lowerHeaders[i].includes('credit')
         )
 
+        // Auto-detect card number column
+        const cardCol = fileHeaders.find((_, i) =>
+          lowerHeaders[i].includes('card') ||
+          lowerHeaders[i].includes('card no') ||
+          lowerHeaders[i].includes('cardno') ||
+          lowerHeaders[i].includes('card number')
+        )
+
         setColumnMapping({
           date: dateCol || '',
           description: descCol || '',
           amount: amountCol || '',
+          cardNumber: cardCol || '',
         })
       },
       error: (err) => {
@@ -134,12 +144,16 @@ export default function CSVImport() {
     return date.toISOString().split('T')[0]
   }
 
-  const applyCategorization = (description: string): { categoryId: string | null; memberId: string | null } => {
-    // Check each rule to see if it matches the description (case-insensitive)
+  const applyCategorization = (description: string, cardNumber?: string): { categoryId: string | null; memberId: string | null } => {
+    // Check each rule to see if it matches the description or card number (case-insensitive)
     const lowerDescription = description.toLowerCase()
+    const lowerCardNumber = cardNumber?.toLowerCase() || ''
 
     for (const rule of rules) {
-      if (lowerDescription.includes(rule.pattern.toLowerCase())) {
+      const lowerPattern = rule.pattern.toLowerCase()
+
+      // Check if pattern matches description or card number
+      if (lowerDescription.includes(lowerPattern) || (lowerCardNumber && lowerCardNumber.includes(lowerPattern))) {
         return {
           categoryId: rule.category_id,
           memberId: rule.member_id,
@@ -162,7 +176,8 @@ export default function CSVImport() {
     try {
       const transactionsToImport = csvData.map(row => {
         const description = row[columnMapping.description]
-        const { categoryId, memberId } = applyCategorization(description)
+        const cardNumber = columnMapping.cardNumber ? row[columnMapping.cardNumber] : undefined
+        const { categoryId, memberId } = applyCategorization(description, cardNumber)
 
         return {
           date: parseDate(row[columnMapping.date]),
@@ -197,7 +212,7 @@ export default function CSVImport() {
   const handleReset = () => {
     setCsvData([])
     setHeaders([])
-    setColumnMapping({ date: '', description: '', amount: '' })
+    setColumnMapping({ date: '', description: '', amount: '', cardNumber: '' })
     setStep('upload')
     setError('')
     setImportResult(null)
@@ -323,6 +338,27 @@ export default function CSVImport() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Card Number Column (optional)
+            </label>
+            <select
+              value={columnMapping.cardNumber}
+              onChange={(e) => setColumnMapping({ ...columnMapping, cardNumber: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Skip (not needed)</option>
+              {headers.map((header) => (
+                <option key={header} value={header}>
+                  {header}
+                </option>
+              ))}
+            </select>
+            <p className="text-sm text-gray-500 mt-1">
+              Use this to auto-assign members based on card number patterns
+            </p>
           </div>
 
           <div className="flex space-x-3 pt-4">

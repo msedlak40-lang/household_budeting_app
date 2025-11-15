@@ -26,8 +26,8 @@ export default function Rules() {
       return
     }
 
-    if (!formData.category_id) {
-      setFormError('Category is required')
+    if (!formData.category_id && !formData.member_id) {
+      setFormError('Either Category or Member must be selected')
       return
     }
 
@@ -37,7 +37,7 @@ export default function Rules() {
       if (editingId) {
         await updateRule(editingId, {
           pattern: formData.pattern.trim(),
-          category_id: formData.category_id,
+          category_id: formData.category_id || null,
           member_id: formData.member_id || null,
         })
         setEditingId(null)
@@ -46,7 +46,7 @@ export default function Rules() {
       } else {
         await addRule(
           formData.pattern.trim(),
-          formData.category_id,
+          formData.category_id || null,
           formData.member_id || null
         )
         setFormData({ pattern: '', category_id: '', member_id: '' })
@@ -155,13 +155,13 @@ export default function Rules() {
                 autoFocus
               />
               <p className="mt-1 text-sm text-gray-500">
-                Case-insensitive. Will match if transaction description contains this text.
+                Case-insensitive. Will match if transaction description or card number contains this text.
               </p>
             </div>
 
             <div>
               <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-1">
-                Category
+                Category (optional)
               </label>
               <select
                 id="category"
@@ -170,7 +170,7 @@ export default function Rules() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={submitting}
               >
-                <option value="">Select a category...</option>
+                <option value="">None (member-only rule)</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
