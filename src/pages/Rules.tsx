@@ -5,7 +5,7 @@ import { useMembers } from '@/hooks/useMembers'
 
 export default function Rules() {
   const { rules, loading, addRule, updateRule, deleteRule } = useRules()
-  const { categories } = useCategories()
+  const { categories, getCategoryDisplayName } = useCategories()
   const { members } = useMembers()
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -93,7 +93,7 @@ export default function Rules() {
 
   const getCategoryName = (categoryId: string) => {
     const category = categories.find((c) => c.id === categoryId)
-    return category?.name || 'Unknown'
+    return category ? getCategoryDisplayName(category) : 'Unknown'
   }
 
   const getMemberName = (memberId: string | null) => {
@@ -173,7 +173,7 @@ export default function Rules() {
                 <option value="">None (member-only rule)</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
-                    {category.name}
+                    {getCategoryDisplayName(category)}
                   </option>
                 ))}
               </select>

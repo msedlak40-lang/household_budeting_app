@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useCategories } from '@/hooks/useCategories'
 
 export default function Categories() {
-  const { categories, loading, error, addCategory, updateCategory, deleteCategory } = useCategories()
+  const { categories, loading, error, addCategory, updateCategory, deleteCategory, getCategoryDisplayName } = useCategories()
   const [isAdding, setIsAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState({ name: '' })
@@ -174,33 +174,107 @@ export default function Categories() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="p-4 bg-white rounded-lg shadow hover:shadow-md transition-shadow"
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-900">{category.name}</h3>
+        <div className="space-y-6">
+          {/* Parent Categories */}
+          {categories.filter(c => !c.parent_category_id).map((parentCategory) => {
+            const subcategories = categories.filter(c => c.parent_category_id === parentCategory.id)
+
+            return (
+              <div key={parentCategory.id} className="bg-white rounded-lg shadow overflow-hidden">
+                {/* Parent Header */}
+                <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      📁 {parentCategory.name}
+                    </h3>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(parentCategory)}
+                        className="text-blue-600 hover:text-blue-900 text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(parentCategory.id, parentCategory.name)}
+                        className="text-red-600 hover:text-red-900 text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                  {subcategories.length > 0 && (
+                    <p className="text-sm text-gray-500 mt-1">
+                      {subcategories.length} subcategor{subcategories.length === 1 ? 'y' : 'ies'}
+                    </p>
+                  )}
                 </div>
-                <div className="flex space-x-2 ml-2">
-                  <button
-                    onClick={() => handleEdit(category)}
-                    className="text-blue-600 hover:text-blue-900 text-sm"
+
+                {/* Subcategories */}
+                {subcategories.length > 0 && (
+                  <div className="px-6 py-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {subcategories.map((subCategory) => (
+                        <div
+                          key={subCategory.id}
+                          className="flex justify-between items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span className="text-gray-400">→</span>
+                            <span className="text-sm text-gray-900">{subCategory.name}</span>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEdit(subCategory)}
+                              className="text-blue-600 hover:text-blue-900 text-xs"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(subCategory.id, subCategory.name)}
+                              className="text-red-600 hover:text-red-900 text-xs"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Standalone Categories (no parent) that aren't parents themselves */}
+          {categories.filter(c => !c.parent_category_id && !categories.some(sub => sub.parent_category_id === c.id)).length > 0 && (
+            <div className="bg-white rounded-lg shadow p-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-3">Other Categories</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {categories.filter(c => !c.parent_category_id && !categories.some(sub => sub.parent_category_id === c.id)).map((category) => (
+                  <div
+                    key={category.id}
+                    className="flex justify-between items-center p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
                   >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(category.id, category.name)}
-                    className="text-red-600 hover:text-red-900 text-sm"
-                  >
-                    Delete
-                  </button>
-                </div>
+                    <span className="text-sm text-gray-900">{category.name}</span>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEdit(category)}
+                        className="text-blue-600 hover:text-blue-900 text-xs"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(category.id, category.name)}
+                        className="text-red-600 hover:text-red-900 text-xs"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+          )}
         </div>
       )}
 

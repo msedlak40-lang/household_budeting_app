@@ -6,8 +6,10 @@ export interface Category {
   id: string
   household_id: string
   name: string
+  parent_category_id: string | null
   created_at: string
   updated_at: string
+  parent?: { id: string; name: string }
 }
 
 export function useCategories() {
@@ -26,7 +28,10 @@ export function useCategories() {
       try {
         const { data, error } = await supabase
           .from('categories')
-          .select('*')
+          .select(`
+            *,
+            parent:categories!parent_category_id(id, name)
+          `)
           .eq('household_id', household.id)
           .order('name', { ascending: true })
 
@@ -49,7 +54,10 @@ export function useCategories() {
     try {
       const { data, error } = await supabase
         .from('categories')
-        .select('*')
+        .select(`
+          *,
+          parent:categories!parent_category_id(id, name)
+        `)
         .eq('household_id', household.id)
         .order('name', { ascending: true })
 
@@ -109,13 +117,42 @@ export function useCategories() {
     }
   }
 
+  const getCategoryDisplayName = (category: Category): string => {
+    if (category.parent) {
+      return `${category.parent.name} → ${category.name}`
+    }
+    return category.name
+  }
+
+  // Sort categories: parents first, then children under their parents
+  const sortedCategories = [...categories].sort((a, b) => {
+    // If both are parents or both are children at same level, sort by name
+    if ((!a.parent_category_id && !b.parent_category_id) ||
+        (a.parent_category_id === b.parent_category_id)) {
+      return a.name.localeCompare(b.name)
+    }
+
+    // Parents come before children
+    if (!a.parent_category_id) return -1
+    if (!b.parent_category_id) return 1
+
+    // Sort children by parent name, then by child name
+    const aParentName = a.parent?.name || ''
+    const bParentName = b.parent?.name || ''
+    if (aParentName !== bParentName) {
+      return aParentName.localeCompare(bParentName)
+    }
+    return a.name.localeCompare(b.name)
+  })
+
   return {
-    categories,
+    categories: sortedCategories,
     loading,
     error,
     addCategory,
     updateCategory,
     deleteCategory,
     refetch: refetchCategories,
+    getCategoryDisplayName,
   }
 }

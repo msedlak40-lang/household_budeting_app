@@ -9,7 +9,7 @@ import CSVImport from '@/components/transactions/CSVImport'
 export default function Transactions() {
   const { accounts } = useAccounts()
   const { transactions, loading, error, updateTransaction, deleteTransaction } = useTransactions()
-  const { categories, addCategory, refetch: refetchCategories } = useCategories()
+  const { categories, addCategory, refetch: refetchCategories, getCategoryDisplayName } = useCategories()
   const { members } = useMembers()
   const { addRule } = useRules()
   const [showImport, setShowImport] = useState(false)
@@ -241,7 +241,7 @@ export default function Transactions() {
                         <option value="">Uncategorized</option>
                         {categories.map((category) => (
                           <option key={category.id} value={category.id}>
-                            {category.name}
+                            {getCategoryDisplayName(category)}
                           </option>
                         ))}
                         <option value="__ADD_NEW__" className="font-semibold text-blue-600">
@@ -264,9 +264,16 @@ export default function Transactions() {
                       </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                      <span className={transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}>
-                        {formatCurrency(transaction.amount)}
-                      </span>
+                      <div className="flex items-center justify-end space-x-2">
+                        {transaction.amount > 0 && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
+                            CREDIT
+                          </span>
+                        )}
+                        <span className={transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}>
+                          {formatCurrency(transaction.amount)}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                       <button
@@ -292,13 +299,27 @@ export default function Transactions() {
 
           {/* Summary */}
           <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-            <div className="flex justify-between text-sm">
-              <span className="font-medium text-gray-700">Total:</span>
-              <span className="font-bold text-gray-900">
-                {formatCurrency(filteredTransactions.reduce((sum, t) => sum + t.amount, 0))}
-              </span>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+              <div>
+                <div className="text-xs text-gray-500 uppercase">Total Expenses</div>
+                <div className="text-lg font-bold text-red-600">
+                  {formatCurrency(filteredTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase">Total Credits</div>
+                <div className="text-lg font-bold text-green-600">
+                  {formatCurrency(filteredTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-500 uppercase">Net Total</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {formatCurrency(filteredTransactions.reduce((sum, t) => sum + t.amount, 0))}
+                </div>
+              </div>
             </div>
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="text-xs text-gray-500 border-t border-gray-200 pt-2">
               {filteredTransactions.filter(t => !t.category_id).length} uncategorized transactions
             </div>
           </div>
