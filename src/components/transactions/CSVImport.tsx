@@ -3,6 +3,7 @@ import Papa from 'papaparse'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useRules } from '@/hooks/useRules'
+import { extractVendor, createTransactionHash } from '@/lib/vendorExtraction'
 
 interface ParsedRow {
   [key: string]: string
@@ -25,7 +26,7 @@ export default function CSVImport() {
   const [step, setStep] = useState<'upload' | 'map' | 'preview' | 'complete'>('upload')
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
-  const [importResult, setImportResult] = useState<{ count: number } | null>(null)
+  const [importResult, setImportResult] = useState<{ count: number; duplicates?: number } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -179,10 +180,17 @@ export default function CSVImport() {
         const cardNumber = columnMapping.cardNumber ? row[columnMapping.cardNumber] : undefined
         const { categoryId, memberId } = applyCategorization(description, cardNumber)
 
+        const date = parseDate(row[columnMapping.date])
+        const amount = parseAmount(row[columnMapping.amount])
+        const vendor = extractVendor(description)
+        const transactionHash = createTransactionHash(date, description, amount, selectedAccount)
+
         return {
-          date: parseDate(row[columnMapping.date]),
+          date,
           description,
-          amount: parseAmount(row[columnMapping.amount]),
+          amount,
+          vendor,
+          transaction_hash: transactionHash,
           category_id: categoryId,
           member_id: memberId,
         }
@@ -191,14 +199,15 @@ export default function CSVImport() {
       console.log('[CSVImport] Importing transactions:', transactionsToImport.length)
       console.log('[CSVImport] Sample transaction:', transactionsToImport[0])
 
-      const { error, count } = await importTransactions(selectedAccount, transactionsToImport)
+      const { error, count, duplicates } = await importTransactions(selectedAccount, transactionsToImport)
 
       if (error) {
         console.error('[CSVImport] Import error:', error)
         setError(error)
       } else {
         console.log('[CSVImport] Successfully imported:', count, 'transactions')
-        setImportResult({ count })
+        console.log('[CSVImport] Skipped duplicates:', duplicates || 0)
+        setImportResult({ count, duplicates })
         setStep('complete')
       }
     } catch (err) {
@@ -443,8 +452,13 @@ export default function CSVImport() {
         <div className="space-y-4">
           <div className="bg-green-50 border border-green-200 rounded-md p-4">
             <p className="text-green-900">
-              <strong>Success!</strong> Imported {importResult.count} transactions.
+              <strong>Success!</strong> Imported {importResult.count} new transaction{importResult.count !== 1 ? 's' : ''}.
             </p>
+            {importResult.duplicates && importResult.duplicates > 0 && (
+              <p className="text-green-800 text-sm mt-2">
+                Skipped {importResult.duplicates} duplicate transaction{importResult.duplicates !== 1 ? 's' : ''} (already in database).
+              </p>
+            )}
           </div>
 
           <button

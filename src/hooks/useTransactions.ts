@@ -129,6 +129,8 @@ export function useTransactions(accountId?: string) {
       date: string
       description: string
       amount: number
+      vendor?: string
+      transaction_hash?: string
       category_id?: string | null
       member_id?: string | null
     }>
@@ -139,6 +141,8 @@ export function useTransactions(accountId?: string) {
         date: t.date,
         description: t.description,
         amount: t.amount,
+        vendor: t.vendor || null,
+        transaction_hash: t.transaction_hash || null,
         category_id: t.category_id || null,
         member_id: t.member_id || null,
       }))
@@ -146,12 +150,42 @@ export function useTransactions(accountId?: string) {
       console.log('[useTransactions] Inserting transactions to account:', accountId)
       console.log('[useTransactions] Sample insert data:', transactionsToInsert[0])
 
+      // Try to insert all transactions
+      // Duplicates will be automatically rejected by the unique constraint
       const { data, error } = await supabase
         .from('transactions')
         .insert(transactionsToInsert)
         .select()
 
       if (error) {
+        // Check if it's a duplicate error
+        if (error.code === '23505') { // Unique constraint violation
+          console.warn('[useTransactions] Some transactions were duplicates and skipped')
+          // Try inserting one by one to see which ones succeed
+          const results = []
+          for (const transaction of transactionsToInsert) {
+            const { data: singleData, error: singleError } = await supabase
+              .from('transactions')
+              .insert(transaction)
+              .select()
+
+            if (!singleError && singleData) {
+              results.push(...singleData)
+            } else if (singleError?.code !== '23505') {
+              // If it's not a duplicate error, something else went wrong
+              throw singleError
+            }
+          }
+
+          await refetchTransactions()
+          const duplicateCount = transactionsToInsert.length - results.length
+          return {
+            error: null,
+            count: results.length,
+            duplicates: duplicateCount,
+          }
+        }
+
         console.error('[useTransactions] Supabase error:', error)
         throw error
       }
@@ -161,7 +195,7 @@ export function useTransactions(accountId?: string) {
       // Refresh the list
       await refetchTransactions()
 
-      return { error: null, count: data?.length || 0 }
+      return { error: null, count: data?.length || 0, duplicates: 0 }
     } catch (err) {
       console.error('[useTransactions] Import failed:', err)
       return {
