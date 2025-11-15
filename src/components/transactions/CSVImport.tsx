@@ -96,15 +96,31 @@ export default function CSVImport() {
   }
 
   const parseAmount = (amountStr: string): number => {
+    if (!amountStr || amountStr.trim() === '') {
+      console.warn('[CSVImport] Empty amount string, defaulting to 0')
+      return 0
+    }
+
     // Remove currency symbols, commas, and whitespace
     const cleaned = amountStr.replace(/[$,\s]/g, '')
 
     // Handle parentheses for negative numbers
     if (cleaned.startsWith('(') && cleaned.endsWith(')')) {
-      return -parseFloat(cleaned.slice(1, -1))
+      const value = parseFloat(cleaned.slice(1, -1))
+      if (isNaN(value)) {
+        console.warn('[CSVImport] Invalid amount in parentheses:', amountStr, 'defaulting to 0')
+        return 0
+      }
+      return -value
     }
 
-    return parseFloat(cleaned)
+    const value = parseFloat(cleaned)
+    if (isNaN(value)) {
+      console.warn('[CSVImport] Invalid amount:', amountStr, 'defaulting to 0')
+      return 0
+    }
+
+    return value
   }
 
   const parseDate = (dateStr: string): string => {
