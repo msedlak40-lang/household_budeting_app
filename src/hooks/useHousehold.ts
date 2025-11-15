@@ -27,22 +27,23 @@ export function useHousehold() {
 
     const initializeHousehold = async () => {
       try {
-        // Check if user has a household
-        const { data: existingHousehold, error: fetchError } = await supabase
+        // Check if user has a household - get all households for this user
+        const { data: existingHouseholds, error: fetchError } = await supabase
           .from('households')
           .select('*')
           .eq('created_by', user.id)
-          .single()
+          .order('created_at', { ascending: true })
+          .limit(1)
 
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          // PGRST116 is "no rows returned", which is expected for new users
+        if (fetchError) {
           console.error('[useHousehold] Fetch error:', fetchError)
           throw fetchError
         }
 
-        if (existingHousehold) {
-          console.log('[useHousehold] Household found:', existingHousehold)
-          setHousehold(existingHousehold)
+        if (existingHouseholds && existingHouseholds.length > 0) {
+          // Use the first (oldest) household
+          console.log('[useHousehold] Household found:', existingHouseholds[0])
+          setHousehold(existingHouseholds[0])
         } else {
           // Create a new household for this user
           const { data: newHousehold, error: createError } = await supabase
