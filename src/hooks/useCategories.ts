@@ -95,17 +95,29 @@ export function useCategories() {
     }
   }
 
-  const updateCategory = async (id: string, name: string) => {
+  const updateCategory = async (id: string, name: string, parentCategoryId?: string | null) => {
     try {
+      const updates: { name: string; parent_category_id?: string | null } = { name }
+
+      // If parentCategoryId is provided (even if null), update it
+      if (parentCategoryId !== undefined) {
+        updates.parent_category_id = parentCategoryId || null
+      }
+
       const { data, error } = await supabase
         .from('categories')
-        .update({ name })
+        .update(updates)
         .eq('id', id)
-        .select()
+        .select(`
+          *,
+          parent:categories!parent_category_id(id, name)
+        `)
         .single()
 
       if (error) throw error
-      setCategories(categories.map((c) => (c.id === id ? data : c)).sort((a, b) => a.name.localeCompare(b.name)))
+
+      // Refetch to get updated parent relationships
+      await refetchCategories()
       return { error: null }
     } catch (err) {
       return { error: err instanceof Error ? err.message : 'Failed to update category' }
