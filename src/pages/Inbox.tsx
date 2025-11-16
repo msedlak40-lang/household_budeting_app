@@ -5,7 +5,7 @@ import { useMembers } from '@/hooks/useMembers'
 import { useRules } from '@/hooks/useRules'
 
 export default function Inbox() {
-  const { transactions, loading, updateTransaction } = useTransactions()
+  const { transactions, loading, updateTransaction, refetch: refetchTransactions } = useTransactions()
   const { categories, getParentCategories, getSubcategories, getCategoryDisplayName } = useCategories()
   const { members } = useMembers()
   const { addRule } = useRules()
@@ -91,6 +91,9 @@ export default function Inbox() {
         if (updatedCount > 0) {
           alert(`Rule created and applied to ${updatedCount} other matching transaction${updatedCount !== 1 ? 's' : ''}!`)
         }
+
+        // Refresh all transactions to ensure Dashboard and other pages see the updates
+        await refetchTransactions()
       }
 
       // Reset form and move to next

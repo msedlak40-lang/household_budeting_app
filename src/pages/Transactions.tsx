@@ -9,7 +9,7 @@ import CSVImport from '@/components/transactions/CSVImport'
 
 export default function Transactions() {
   const { accounts } = useAccounts()
-  const { transactions, loading, error, updateTransaction, deleteTransaction } = useTransactions()
+  const { transactions, loading, error, updateTransaction, deleteTransaction, refetch: refetchTransactions } = useTransactions()
   const { categories, addCategory, refetch: refetchCategories, getCategoryDisplayName, getParentCategories, getSubcategories, getCategoryById } = useCategories()
   const { members } = useMembers()
   const { addRule } = useRules()
@@ -206,6 +206,9 @@ export default function Transactions() {
         : `Rule created! Future transactions with "${transaction.description}" will auto-categorize to ${ruleType}.`
 
       alert(message)
+
+      // Refresh all transactions to ensure Dashboard and other pages see the updates
+      await refetchTransactions()
     } catch (error) {
       alert(`Error creating rule: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
