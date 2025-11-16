@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useCategories } from '@/hooks/useCategories'
@@ -8,12 +8,15 @@ import { suggestCategories } from '@/lib/categorySuggestions'
 import CSVImport from '@/components/transactions/CSVImport'
 import { isExpense, isIncome } from '@/lib/transactionUtils'
 
+type TabType = 'unmapped' | 'mapped'
+
 export default function Transactions() {
   const { accounts } = useAccounts()
   const { transactions, loading, error, updateTransaction, deleteTransaction, refetch: refetchTransactions } = useTransactions()
   const { categories, addCategory, refetch: refetchCategories, getCategoryDisplayName, getParentCategories, getSubcategories, getCategoryById } = useCategories()
   const { members } = useMembers()
   const { addRule } = useRules()
+  const [activeTab, setActiveTab] = useState<TabType>('unmapped')
   const [showImport, setShowImport] = useState(false)
   const [filterAccount, setFilterAccount] = useState<string>('')
   const [filterCategory, setFilterCategory] = useState<string>('')
@@ -23,7 +26,6 @@ export default function Transactions() {
   const [dateTo, setDateTo] = useState('')
   const [amountMin, setAmountMin] = useState('')
   const [amountMax, setAmountMax] = useState('')
-  const [showUncategorizedOnly, setShowUncategorizedOnly] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [savingRuleFor, setSavingRuleFor] = useState<string | null>(null)
   const [showAddCategory, setShowAddCategory] = useState(false)
@@ -32,6 +34,7 @@ export default function Transactions() {
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null)
   const [saveNotification, setSaveNotification] = useState<string | null>(null)
   const [categorySuggestions, setCategorySuggestions] = useState<string[]>([])
+  const tableRef = useRef<HTMLDivElement>(null)
 
   // Update category suggestions when name changes
   useEffect(() => {
@@ -168,6 +171,9 @@ export default function Transactions() {
       return
     }
 
+    // Save scroll position
+    const scrollPosition = tableRef.current?.scrollTop || 0
+
     setSavingRuleFor(transaction.id)
 
     try {
@@ -210,6 +216,13 @@ export default function Transactions() {
 
       // Refresh all transactions to ensure Dashboard and other pages see the updates
       await refetchTransactions()
+
+      // Restore scroll position after a brief delay to allow re-render
+      setTimeout(() => {
+        if (tableRef.current) {
+          tableRef.current.scrollTop = scrollPosition
+        }
+      }, 100)
     } catch (error) {
       alert(`Error creating rule: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
@@ -223,6 +236,10 @@ export default function Transactions() {
   }
 
   const filteredTransactions = transactions.filter(t => {
+    // Tab filter: unmapped vs mapped
+    if (activeTab === 'unmapped' && t.category_id) return false
+    if (activeTab === 'mapped' && !t.category_id) return false
+
     // Account filter
     if (filterAccount && t.account_id !== filterAccount) return false
 
@@ -249,16 +266,14 @@ export default function Transactions() {
     if (amountMin && absAmount < parseFloat(amountMin)) return false
     if (amountMax && absAmount > parseFloat(amountMax)) return false
 
-    // Uncategorized only
-    if (showUncategorizedOnly && t.category_id) return false
-
     return true
   })
 
   const uncategorizedCount = transactions.filter(t => !t.category_id).length
+  const mappedCount = transactions.filter(t => t.category_id).length
 
   const hasActiveFilters = filterAccount || filterCategory || filterMember || searchText ||
-    dateFrom || dateTo || amountMin || amountMax || showUncategorizedOnly
+    dateFrom || dateTo || amountMin || amountMax
 
   const clearAllFilters = () => {
     setFilterAccount('')
@@ -269,7 +284,6 @@ export default function Transactions() {
     setDateTo('')
     setAmountMin('')
     setAmountMax('')
-    setShowUncategorizedOnly(false)
   }
 
   if (loading) {
@@ -291,7 +305,10 @@ export default function Transactions() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">All Transactions</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Transactions</h1>
+          <p className="text-gray-600 mt-1">Manage and categorize your transactions</p>
+        </div>
         <button
           onClick={() => setShowImport(!showImport)}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -302,30 +319,41 @@ export default function Transactions() {
 
       {showImport && <CSVImport />}
 
-      {/* Categorization Banner */}
-      {uncategorizedCount > 0 && (
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-6 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-bold mb-2">
-                {uncategorizedCount} Transaction{uncategorizedCount !== 1 ? 's' : ''} Need{uncategorizedCount === 1 ? 's' : ''} Categorization
-              </h3>
-              <p className="text-blue-100 mb-4">
-                Use the Inbox for a focused, one-at-a-time categorization workflow. This page is for reviewing all transactions.
-              </p>
-              <a
-                href="/inbox"
-                className="inline-flex items-center px-4 py-2 bg-white text-blue-600 font-medium rounded-md hover:bg-blue-50 transition-colors"
-              >
-                Go to Inbox →
-              </a>
-            </div>
-            <div className="hidden md:block">
-              <div className="text-6xl font-bold opacity-20">📥</div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Tabs */}
+      <div className="border-b border-gray-200">
+        <nav className="-mb-px flex space-x-8">
+          <button
+            onClick={() => setActiveTab('unmapped')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'unmapped'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Unmapped
+            {uncategorizedCount > 0 && (
+              <span className="ml-2 bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                {uncategorizedCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('mapped')}
+            className={`py-2 px-1 border-b-2 font-medium text-sm ${
+              activeTab === 'mapped'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Mapped
+            {mappedCount > 0 && (
+              <span className="ml-2 bg-green-100 text-green-800 text-xs font-bold px-2 py-0.5 rounded-full">
+                {mappedCount}
+              </span>
+            )}
+          </button>
+        </nav>
+      </div>
 
       {/* Search and Filter Controls */}
       <div className="bg-white rounded-lg shadow mb-6">
@@ -352,7 +380,7 @@ export default function Transactions() {
               {showFilters ? 'Hide Filters' : 'Show Filters'}
               {hasActiveFilters && !showFilters && (
                 <span className="ml-2 bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
-                  {[filterAccount, filterCategory, filterMember, searchText, dateFrom, dateTo, amountMin, amountMax, showUncategorizedOnly].filter(Boolean).length}
+                  {[filterAccount, filterCategory, filterMember, searchText, dateFrom, dateTo, amountMin, amountMax].filter(Boolean).length}
                 </span>
               )}
             </button>
@@ -469,19 +497,6 @@ export default function Transactions() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-
-              {/* Uncategorized Only */}
-              <div className="flex items-end">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={showUncategorizedOnly}
-                    onChange={(e) => setShowUncategorizedOnly(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Show uncategorized only</span>
-                </label>
-              </div>
             </div>
           </div>
         )}
@@ -517,7 +532,7 @@ export default function Transactions() {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto max-h-[calc(100vh-300px)] relative">
+          <div ref={tableRef} className="overflow-x-auto max-h-[calc(100vh-300px)] relative">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50 sticky top-0 z-10 shadow-sm">
                 <tr>
@@ -684,8 +699,9 @@ export default function Transactions() {
       {transactions.length > 0 && (
         <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
           <p className="text-sm text-gray-700">
-            <strong>💡 About this page:</strong> This is your complete transaction ledger - view, search, filter, and edit all transactions.
-            For categorizing uncategorized transactions, use the <a href="/inbox" className="text-blue-600 hover:underline font-medium">Inbox</a>.
+            <strong>💡 Tip:</strong> Use the <span className="font-semibold text-blue-600">Unmapped</span> tab to categorize transactions that haven't been assigned yet.
+            Once categorized, they'll automatically move to the <span className="font-semibold text-green-600">Mapped</span> tab.
+            You can also use the <a href="/inbox" className="text-blue-600 hover:underline font-medium">Inbox</a> for a focused, one-at-a-time workflow.
           </p>
         </div>
       )}
