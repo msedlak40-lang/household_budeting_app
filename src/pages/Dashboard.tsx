@@ -1,27 +1,28 @@
 import { useTransactions } from '@/hooks/useTransactions'
 import { useCategories } from '@/hooks/useCategories'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 export default function Dashboard() {
   const { transactions, loading } = useTransactions()
   const { categories, getCategoryDisplayName } = useCategories()
 
+  // State for selected month/year
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
+
   // Debug: Log transactions to see what we have
   console.log('[Dashboard] Total transactions:', transactions.length)
   console.log('[Dashboard] Categorized transactions:', transactions.filter(t => t.category_id).length)
   console.log('[Dashboard] Sample transaction:', transactions[0])
+  console.log('[Dashboard] Selected period:', selectedYear, selectedMonth)
 
-  // Get current month transactions
+  // Get current month transactions (based on selected period)
   const currentMonthTransactions = useMemo(() => {
-    const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
-
     return transactions.filter(t => {
       const transactionDate = new Date(t.date)
-      return transactionDate.getMonth() === currentMonth && transactionDate.getFullYear() === currentYear
+      return transactionDate.getMonth() === selectedMonth && transactionDate.getFullYear() === selectedYear
     })
-  }, [transactions])
+  }, [transactions, selectedMonth, selectedYear])
 
   // Calculate summary stats
   const stats = useMemo(() => {
@@ -126,13 +127,68 @@ export default function Dashboard() {
     )
   }
 
-  const currentMonthName = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const currentMonthName = new Date(selectedYear, selectedMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  // Get available months from transactions
+  const availableMonths = useMemo(() => {
+    const months = new Set<string>()
+    transactions.forEach(t => {
+      const date = new Date(t.date)
+      const key = `${date.getFullYear()}-${date.getMonth()}`
+      months.add(key)
+    })
+    return Array.from(months).sort().reverse() // Most recent first
+  }, [transactions])
 
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-gray-600 mt-1">Overview for {currentMonthName}</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <p className="text-gray-600 mt-1">Financial overview and analysis</p>
+        </div>
+
+        {/* Month/Year Selector */}
+        <div className="flex items-center space-x-3">
+          <label className="text-sm font-medium text-gray-700">Period:</label>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value={0}>January</option>
+            <option value={1}>February</option>
+            <option value={2}>March</option>
+            <option value={3}>April</option>
+            <option value={4}>May</option>
+            <option value={5}>June</option>
+            <option value={6}>July</option>
+            <option value={7}>August</option>
+            <option value={8}>September</option>
+            <option value={9}>October</option>
+            <option value={10}>November</option>
+            <option value={11}>December</option>
+          </select>
+          <select
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Period Display */}
+      <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+        <p className="text-sm font-medium text-blue-900">
+          Viewing: <span className="font-bold">{currentMonthName}</span>
+          {currentMonthTransactions.length === 0 && (
+            <span className="ml-2 text-blue-700">(No transactions for this period)</span>
+          )}
+        </p>
       </div>
 
       {/* Summary Cards */}
@@ -140,13 +196,13 @@ export default function Dashboard() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm text-gray-500 uppercase font-medium">Expenses</div>
           <div className="text-2xl font-bold text-red-600 mt-2">{formatCurrency(stats.expenses)}</div>
-          <div className="text-xs text-gray-500 mt-1">This month</div>
+          <div className="text-xs text-gray-500 mt-1">Selected period</div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm text-gray-500 uppercase font-medium">Income</div>
           <div className="text-2xl font-bold text-green-600 mt-2">{formatCurrency(stats.income)}</div>
-          <div className="text-xs text-gray-500 mt-1">This month</div>
+          <div className="text-xs text-gray-500 mt-1">Selected period</div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
@@ -154,7 +210,7 @@ export default function Dashboard() {
           <div className={`text-2xl font-bold mt-2 ${stats.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
             {formatCurrency(stats.net)}
           </div>
-          <div className="text-xs text-gray-500 mt-1">This month</div>
+          <div className="text-xs text-gray-500 mt-1">Selected period</div>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6">
@@ -172,7 +228,7 @@ export default function Dashboard() {
         </div>
         <div className="p-6">
           {categoryBreakdown.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">No categorized expenses this month</p>
+            <p className="text-gray-500 text-center py-8">No categorized expenses for this period</p>
           ) : (
             <div className="space-y-4">
               {categoryBreakdown.map((category, index) => {
