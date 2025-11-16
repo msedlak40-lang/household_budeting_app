@@ -664,18 +664,18 @@ export default function Dashboard() {
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
               <div className="flex justify-between items-start">
-                <div>
+                <div className="flex-1">
                   {selectedSubcategoryId && selectedSubcategory ? (
                     <>
-                      <div className="flex items-center space-x-2 text-sm text-gray-500 mb-1">
-                        <button
-                          onClick={() => setSelectedSubcategoryId(null)}
-                          className="hover:text-blue-600 transition-colors"
-                        >
-                          {selectedParentCategory.name}
-                        </button>
-                        <span>→</span>
-                      </div>
+                      <button
+                        onClick={() => setSelectedSubcategoryId(null)}
+                        className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-700 font-medium mb-2 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                        <span>Back to {selectedParentCategory.name} subcategories</span>
+                      </button>
                       <h2 className="text-2xl font-bold text-gray-900">{selectedSubcategory.name}</h2>
                       <p className="text-sm text-gray-600 mt-1">Top vendors for {currentMonthName}</p>
                     </>
@@ -693,7 +693,7 @@ export default function Dashboard() {
                     setSelectedCategoryId(null)
                     setSelectedSubcategoryId(null)
                   }}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  className="text-gray-400 hover:text-gray-600 transition-colors ml-4"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
