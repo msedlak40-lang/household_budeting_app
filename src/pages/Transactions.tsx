@@ -170,17 +170,42 @@ export default function Transactions() {
     setSavingRuleFor(transaction.id)
 
     try {
+      // Create the rule
       await addRule(
         transaction.description,
         transaction.category_id || null,
         transaction.member_id
       )
+
+      // Find all uncategorized transactions that match this description
+      const matchingTransactions = transactions.filter(t =>
+        !t.category_id &&
+        t.description.toLowerCase().includes(transaction.description.toLowerCase())
+      )
+
+      // Apply the categorization to all matching uncategorized transactions
+      let updatedCount = 0
+      for (const matchingTx of matchingTransactions) {
+        const { error } = await updateTransaction(matchingTx.id, {
+          category_id: transaction.category_id || null,
+          member_id: transaction.member_id || null,
+        })
+        if (!error) {
+          updatedCount++
+        }
+      }
+
       const ruleType = transaction.category_id && transaction.member_id
         ? 'category and member'
         : transaction.category_id
         ? 'category'
         : 'member'
-      alert(`Rule created! Future transactions with "${transaction.description}" will be auto-assigned to ${ruleType}.`)
+
+      const message = updatedCount > 0
+        ? `Rule created and applied to ${updatedCount} existing uncategorized transaction${updatedCount !== 1 ? 's' : ''}! Future transactions with "${transaction.description}" will auto-categorize to ${ruleType}.`
+        : `Rule created! Future transactions with "${transaction.description}" will auto-categorize to ${ruleType}.`
+
+      alert(message)
     } catch (error) {
       alert(`Error creating rule: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {

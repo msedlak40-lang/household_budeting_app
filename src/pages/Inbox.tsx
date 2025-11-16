@@ -48,7 +48,7 @@ export default function Inbox() {
     setProcessing(true)
 
     try {
-      // Update the transaction
+      // Update the current transaction
       const { error } = await updateTransaction(currentTransaction.id, {
         category_id: categoryId,
         member_id: selectedMember || null,
@@ -60,13 +60,37 @@ export default function Inbox() {
         return
       }
 
-      // Create rule if requested
+      // Create rule and apply to existing transactions if requested
       if (createRule && categoryId) {
+        // Create the rule
         await addRule(
           currentTransaction.description,
           categoryId,
           selectedMember || null
         )
+
+        // Find all other uncategorized transactions that match this description
+        const matchingTransactions = transactions.filter(t =>
+          !t.category_id &&
+          t.id !== currentTransaction.id && // Exclude current transaction (already updated)
+          t.description.toLowerCase().includes(currentTransaction.description.toLowerCase())
+        )
+
+        // Apply the categorization to all matching uncategorized transactions
+        let updatedCount = 0
+        for (const matchingTx of matchingTransactions) {
+          const { error } = await updateTransaction(matchingTx.id, {
+            category_id: categoryId,
+            member_id: selectedMember || null,
+          })
+          if (!error) {
+            updatedCount++
+          }
+        }
+
+        if (updatedCount > 0) {
+          alert(`Rule created and applied to ${updatedCount} other matching transaction${updatedCount !== 1 ? 's' : ''}!`)
+        }
       }
 
       // Reset form and move to next
