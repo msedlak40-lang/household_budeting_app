@@ -119,6 +119,8 @@ export default function Dashboard() {
   const maxCategoryAmount = Math.max(...categoryBreakdown.map(c => c.amount), 1)
   const maxMonthlyAmount = Math.max(...monthlyTrends.map(m => Math.max(m.expenses, m.income)), 1)
 
+  const currentMonthName = new Date(selectedYear, selectedMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
   if (loading) {
     return (
       <div className="p-6">
@@ -126,19 +128,6 @@ export default function Dashboard() {
       </div>
     )
   }
-
-  const currentMonthName = new Date(selectedYear, selectedMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-
-  // Get available months from transactions
-  const availableMonths = useMemo(() => {
-    const months = new Set<string>()
-    transactions.forEach(t => {
-      const date = new Date(t.date)
-      const key = `${date.getFullYear()}-${date.getMonth()}`
-      months.add(key)
-    })
-    return Array.from(months).sort().reverse() // Most recent first
-  }, [transactions])
 
   return (
     <div className="p-6 space-y-6">
