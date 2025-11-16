@@ -32,9 +32,16 @@ export default function Dashboard() {
   })
   const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0])
 
-  // State for category drill-down modal
+  // State for category drill-down modal (Overview tab)
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null)
+
+  // State for Analysis tab drill-down modal
+  const [analysisDrillDown, setAnalysisDrillDown] = useState<{
+    level1?: { type: string; id: string; name: string }
+    level2?: { type: string; id: string; name: string }
+    level3?: { type: string; id: string; name: string }
+  } | null>(null)
 
   // Debug: Log transactions to see what we have
   console.log('[Dashboard] Total transactions:', transactions.length)
@@ -297,6 +304,126 @@ export default function Dashboard() {
         ...data,
       }))
   }, [filteredTransactions])
+
+  // Analysis tab: Drill-down data computation
+  const analysisDrillDownData = useMemo(() => {
+    if (!analysisDrillDown) return []
+
+    const groups = new Map<string, { id: string; name: string; amount: number; count: number; type: string }>()
+
+    // Filter transactions based on current drill-down level
+    let relevantTransactions = filteredTransactions.filter(t => isExpense(t))
+
+    // Apply filters based on drill-down levels
+    if (analysisDrillDown.level1) {
+      const { type, id } = analysisDrillDown.level1
+      relevantTransactions = relevantTransactions.filter(t => {
+        if (type === 'member') return t.member_id === id
+        if (type === 'account') return t.account_id === id
+        if (type === 'parent_category') {
+          if (!t.category_id) return false
+          const cat = getCategoryById(t.category_id)
+          if (!cat) return false
+          const parentId = cat.parent_category_id || cat.id
+          return parentId === id
+        }
+        if (type === 'vendor') return (t.vendor || t.description) === id
+        return false
+      })
+    }
+
+    if (analysisDrillDown.level2) {
+      const { type, id } = analysisDrillDown.level2
+      relevantTransactions = relevantTransactions.filter(t => {
+        if (type === 'parent_category') {
+          if (!t.category_id) return false
+          const cat = getCategoryById(t.category_id)
+          if (!cat) return false
+          const parentId = cat.parent_category_id || cat.id
+          return parentId === id
+        }
+        if (type === 'subcategory') return t.category_id === id
+        if (type === 'vendor') return (t.vendor || t.description) === id
+        return false
+      })
+    }
+
+    if (analysisDrillDown.level3) {
+      const { type, id } = analysisDrillDown.level3
+      relevantTransactions = relevantTransactions.filter(t => {
+        if (type === 'subcategory') return t.category_id === id
+        if (type === 'vendor') return (t.vendor || t.description) === id
+        return false
+      })
+    }
+
+    // Determine what to group by next
+    let nextGroupType = ''
+    if (!analysisDrillDown.level1) return []
+
+    if (analysisDrillDown.level3) {
+      // Level 3 exists, show vendors
+      nextGroupType = 'vendor'
+    } else if (analysisDrillDown.level2) {
+      // Level 2 exists
+      if (analysisDrillDown.level2.type === 'subcategory') {
+        nextGroupType = 'vendor'
+      } else if (analysisDrillDown.level2.type === 'parent_category') {
+        nextGroupType = 'subcategory'
+      }
+    } else {
+      // Only level 1 exists
+      if (analysisDrillDown.level1.type === 'member' || analysisDrillDown.level1.type === 'account') {
+        nextGroupType = 'parent_category'
+      } else if (analysisDrillDown.level1.type === 'parent_category') {
+        nextGroupType = 'subcategory'
+      } else if (analysisDrillDown.level1.type === 'vendor') {
+        nextGroupType = 'parent_category'
+      }
+    }
+
+    // Group transactions by the next level
+    relevantTransactions.forEach(t => {
+      let groupKey = ''
+      let groupName = ''
+      let groupType = nextGroupType
+
+      if (nextGroupType === 'parent_category') {
+        if (!t.category_id) return
+        const category = getCategoryById(t.category_id)
+        if (!category) return
+        const parentId = category.parent_category_id || category.id
+        const parent = getCategoryById(parentId)
+        if (!parent) return
+        groupKey = parentId
+        groupName = parent.name
+      } else if (nextGroupType === 'subcategory') {
+        if (!t.category_id) return
+        const cat = getCategoryById(t.category_id)
+        if (!cat) return
+        // Only show actual subcategories, not parent categories
+        if (!cat.parent_category_id) return
+        groupKey = t.category_id
+        groupName = cat.name
+      } else if (nextGroupType === 'vendor') {
+        groupKey = t.vendor || t.description
+        groupName = t.vendor || t.description
+      }
+
+      if (!groupKey) return
+
+      const existing = groups.get(groupKey) || { id: groupKey, name: groupName, amount: 0, count: 0, type: groupType }
+      groups.set(groupKey, {
+        id: groupKey,
+        name: groupName,
+        amount: existing.amount + Math.abs(t.amount),
+        count: existing.count + 1,
+        type: groupType
+      })
+    })
+
+    return Array.from(groups.values()).sort((a, b) => b.amount - a.amount).slice(0, 20)
+  }, [analysisDrillDown, filteredTransactions, getCategoryById])
 
   const selectedParentCategory = useMemo(() => {
     if (!selectedCategoryId) return null
@@ -909,7 +1036,16 @@ export default function Dashboard() {
                   const barWidth = (group.amount / maxGroupAmount) * 100
 
                   return (
-                    <div key={index} className="border-b border-gray-100 pb-3 last:border-0">
+                    <div
+                      key={index}
+                      className="border-b border-gray-100 pb-3 last:border-0 cursor-pointer hover:bg-gray-50 p-3 rounded-md transition-colors -mx-3"
+                      onClick={() => {
+                        // Start drill-down
+                        setAnalysisDrillDown({
+                          level1: { type: groupBy, id: group.name, name: group.name }
+                        })
+                      }}
+                    >
                       <div className="flex justify-between items-baseline mb-2">
                         <span className="text-sm font-medium text-gray-900 truncate">{group.name}</span>
                         <span className="text-sm text-gray-600 ml-2">
@@ -923,7 +1059,7 @@ export default function Dashboard() {
                         />
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        {group.count} transaction{group.count !== 1 ? 's' : ''}
+                        {group.count} transaction{group.count !== 1 ? 's' : ''} • Click to drill down
                       </div>
                     </div>
                   )
@@ -1136,6 +1272,167 @@ export default function Dashboard() {
               })()}
             </div>
           </div>
+
+          {/* Analysis Drill-Down Modal */}
+          {analysisDrillDown && (
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+              onClick={() => setAnalysisDrillDown(null)}
+            >
+              <div
+                className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Modal Header */}
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      {/* Breadcrumb and Back Button */}
+                      {(analysisDrillDown.level2 || analysisDrillDown.level3) && (
+                        <button
+                          onClick={() => {
+                            if (analysisDrillDown.level3) {
+                              setAnalysisDrillDown({
+                                level1: analysisDrillDown.level1,
+                                level2: analysisDrillDown.level2
+                              })
+                            } else if (analysisDrillDown.level2) {
+                              setAnalysisDrillDown({
+                                level1: analysisDrillDown.level1
+                              })
+                            }
+                          }}
+                          className="flex items-center space-x-1 text-sm text-blue-600 hover:text-blue-700 font-medium mb-2 transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                          <span>Back</span>
+                        </button>
+                      )}
+
+                      {/* Title showing current drill-down path */}
+                      <div className="space-y-1">
+                        <div className="text-xs text-gray-500">
+                          {analysisDrillDown.level1.name}
+                          {analysisDrillDown.level2 && ` → ${analysisDrillDown.level2.name}`}
+                          {analysisDrillDown.level3 && ` → ${analysisDrillDown.level3.name}`}
+                        </div>
+                        <h2 className="text-2xl font-bold text-gray-900">
+                          {analysisDrillDown.level3?.name || analysisDrillDown.level2?.name || analysisDrillDown.level1.name}
+                        </h2>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {analysisDrillDownData.length > 0
+                            ? `Breakdown for selected period`
+                            : 'No further breakdown available'}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setAnalysisDrillDown(null)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors ml-4"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div className="bg-white rounded-md p-3 border border-gray-200">
+                      <div className="text-xs text-gray-500 uppercase font-medium">Total Spent</div>
+                      <div className="text-xl font-bold text-red-600 mt-1">
+                        {formatCurrency(analysisDrillDownData.reduce((sum, item) => sum + item.amount, 0))}
+                      </div>
+                    </div>
+                    <div className="bg-white rounded-md p-3 border border-gray-200">
+                      <div className="text-xs text-gray-500 uppercase font-medium">Transactions</div>
+                      <div className="text-xl font-bold text-gray-900 mt-1">
+                        {analysisDrillDownData.reduce((sum, item) => sum + item.count, 0)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Body */}
+                <div className="overflow-y-auto max-h-96 p-6">
+                  {analysisDrillDownData.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">No data available for further breakdown</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {analysisDrillDownData.map((item, index) => {
+                        const totalAmount = analysisDrillDownData.reduce((sum, i) => sum + i.amount, 0)
+                        const percentage = (item.amount / totalAmount) * 100
+                        const maxAmount = Math.max(...analysisDrillDownData.map(i => i.amount), 1)
+                        const barWidth = (item.amount / maxAmount) * 100
+
+                        // Determine if this item can be drilled down further
+                        const canDrillDown = item.type !== 'vendor'
+
+                        return (
+                          <div
+                            key={index}
+                            className={`border-b border-gray-100 pb-3 last:border-0 ${
+                              canDrillDown ? 'cursor-pointer hover:bg-gray-50 p-3 rounded-md transition-colors -mx-3' : 'p-3'
+                            }`}
+                            onClick={() => {
+                              if (!canDrillDown) return
+
+                              // Add to drill-down path
+                              if (!analysisDrillDown.level2) {
+                                setAnalysisDrillDown({
+                                  ...analysisDrillDown,
+                                  level2: { type: item.type, id: item.id, name: item.name }
+                                })
+                              } else if (!analysisDrillDown.level3) {
+                                setAnalysisDrillDown({
+                                  ...analysisDrillDown,
+                                  level3: { type: item.type, id: item.id, name: item.name }
+                                })
+                              }
+                            }}
+                          >
+                            <div className="flex justify-between items-baseline mb-2">
+                              <span className="text-sm font-medium text-gray-900">{item.name}</span>
+                              <span className="text-sm text-gray-600">
+                                {formatCurrency(item.amount)} ({percentage.toFixed(1)}%)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-1.5">
+                              <div
+                                className="bg-blue-600 h-1.5 rounded-full"
+                                style={{ width: `${barWidth}%` }}
+                              />
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {item.count} transaction{item.count !== 1 ? 's' : ''}
+                              {canDrillDown && ' • Click to drill down'}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Modal Footer */}
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">
+                      Showing {analysisDrillDownData.length} item{analysisDrillDownData.length !== 1 ? 's' : ''}
+                    </p>
+                    <button
+                      onClick={() => setAnalysisDrillDown(null)}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
