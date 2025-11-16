@@ -6,6 +6,11 @@ export default function Dashboard() {
   const { transactions, loading } = useTransactions()
   const { categories, getCategoryDisplayName } = useCategories()
 
+  // Debug: Log transactions to see what we have
+  console.log('[Dashboard] Total transactions:', transactions.length)
+  console.log('[Dashboard] Categorized transactions:', transactions.filter(t => t.category_id).length)
+  console.log('[Dashboard] Sample transaction:', transactions[0])
+
   // Get current month transactions
   const currentMonthTransactions = useMemo(() => {
     const now = new Date()
@@ -42,11 +47,16 @@ export default function Dashboard() {
   const categoryBreakdown = useMemo(() => {
     const breakdown = new Map<string, { name: string; amount: number; count: number }>()
 
-    currentMonthTransactions
-      .filter(t => t.amount < 0 && t.category_id) // Only expenses with categories
-      .forEach(t => {
+    const categorizedExpenses = currentMonthTransactions.filter(t => t.amount < 0 && t.category_id)
+    console.log('[Dashboard] Current month categorized expenses:', categorizedExpenses.length)
+    console.log('[Dashboard] Sample categorized expense:', categorizedExpenses[0])
+
+    categorizedExpenses.forEach(t => {
         const category = categories.find(c => c.id === t.category_id)
-        if (!category) return
+        if (!category) {
+          console.log('[Dashboard] Category not found for transaction:', t.category_id)
+          return
+        }
 
         const categoryName = getCategoryDisplayName(category)
         const existing = breakdown.get(t.category_id) || { name: categoryName, amount: 0, count: 0 }
@@ -57,9 +67,12 @@ export default function Dashboard() {
         })
       })
 
-    return Array.from(breakdown.values())
+    const result = Array.from(breakdown.values())
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 10) // Top 10 categories
+
+    console.log('[Dashboard] Category breakdown:', result)
+    return result
   }, [currentMonthTransactions, categories, getCategoryDisplayName])
 
   // Monthly trends (last 6 months)
