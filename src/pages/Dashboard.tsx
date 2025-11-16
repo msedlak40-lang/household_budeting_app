@@ -5,7 +5,7 @@ import { isExpense, isIncome } from '@/lib/transactionUtils'
 
 export default function Dashboard() {
   const { transactions, loading } = useTransactions()
-  const { categories, getCategoryDisplayName } = useCategories()
+  const { categories, getCategoryDisplayName, getCategoryById, getSubcategories } = useCategories()
 
   // State for selected month/year
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
@@ -13,6 +13,7 @@ export default function Dashboard() {
 
   // State for category drill-down modal
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+  const [selectedSubcategoryId, setSelectedSubcategoryId] = useState<string | null>(null)
 
   // Debug: Log transactions to see what we have
   console.log('[Dashboard] Total transactions:', transactions.length)
@@ -48,25 +49,35 @@ export default function Dashboard() {
     }
   }, [currentMonthTransactions, transactions])
 
-  // Group by category for current month
+  // Group by PARENT category only for current month
   const categoryBreakdown = useMemo(() => {
-    const breakdown = new Map<string, { name: string; amount: number; count: number }>()
+    const breakdown = new Map<string, { id: string; name: string; amount: number; count: number }>()
 
     const categorizedExpenses = currentMonthTransactions.filter(t => isExpense(t) && t.category_id)
     console.log('[Dashboard] Current month categorized expenses:', categorizedExpenses.length)
     console.log('[Dashboard] Sample categorized expense:', categorizedExpenses[0])
 
     categorizedExpenses.forEach(t => {
-        const category = categories.find(c => c.id === t.category_id)
+        const category = getCategoryById(t.category_id)
         if (!category) {
           console.log('[Dashboard] Category not found for transaction:', t.category_id)
           return
         }
 
-        const categoryName = getCategoryDisplayName(category)
-        const existing = breakdown.get(t.category_id) || { name: categoryName, amount: 0, count: 0 }
-        breakdown.set(t.category_id, {
-          name: categoryName,
+        // Get the parent category (or the category itself if it has no parent)
+        const parentCategoryId = category.parent_category_id || category.id
+        const parentCategory = getCategoryById(parentCategoryId)
+        if (!parentCategory) return
+
+        const existing = breakdown.get(parentCategoryId) || {
+          id: parentCategoryId,
+          name: parentCategory.name,
+          amount: 0,
+          count: 0
+        }
+        breakdown.set(parentCategoryId, {
+          id: parentCategoryId,
+          name: parentCategory.name,
           amount: existing.amount + Math.abs(t.amount),
           count: existing.count + 1,
         })
@@ -74,21 +85,63 @@ export default function Dashboard() {
 
     const result = Array.from(breakdown.values())
       .sort((a, b) => b.amount - a.amount)
-      .slice(0, 10) // Top 10 categories
+      .slice(0, 10) // Top 10 parent categories
 
     console.log('[Dashboard] Category breakdown:', result)
     return result
-  }, [currentMonthTransactions, categories, getCategoryDisplayName])
+  }, [currentMonthTransactions, categories, getCategoryById])
 
-  // Get vendor breakdown for selected category
-  const selectedCategoryVendors = useMemo(() => {
-    if (!selectedCategoryId) return []
+  // Get subcategory breakdown for selected parent category
+  const subcategoryBreakdown = useMemo(() => {
+    if (!selectedCategoryId || selectedSubcategoryId) return []
+
+    const breakdown = new Map<string, { id: string; name: string; amount: number; count: number }>()
+    const subcategories = getSubcategories(selectedCategoryId)
+
+    // Get all transactions for this parent category
+    currentMonthTransactions.forEach(t => {
+      if (!isExpense(t) || !t.category_id) return
+
+      const category = getCategoryById(t.category_id)
+      if (!category) return
+
+      // Check if this transaction belongs to the selected parent category
+      const parentCategoryId = category.parent_category_id || category.id
+      if (parentCategoryId !== selectedCategoryId) return
+
+      // If it's a subcategory, group by subcategory
+      // If it's directly assigned to parent, use parent
+      const groupId = category.parent_category_id ? category.id : selectedCategoryId
+      const groupCategory = getCategoryById(groupId)
+      if (!groupCategory) return
+
+      const existing = breakdown.get(groupId) || {
+        id: groupId,
+        name: groupCategory.name,
+        amount: 0,
+        count: 0
+      }
+      breakdown.set(groupId, {
+        id: groupId,
+        name: groupCategory.name,
+        amount: existing.amount + Math.abs(t.amount),
+        count: existing.count + 1,
+      })
+    })
+
+    return Array.from(breakdown.values())
+      .sort((a, b) => b.amount - a.amount)
+  }, [selectedCategoryId, selectedSubcategoryId, currentMonthTransactions, getSubcategories, getCategoryById])
+
+  // Get vendor breakdown for selected subcategory
+  const vendorBreakdown = useMemo(() => {
+    if (!selectedSubcategoryId) return []
 
     const vendorMap = new Map<string, { vendor: string; amount: number; count: number }>()
 
-    // Get all transactions for this category in the current month
+    // Get all transactions for this subcategory in the current month
     const categoryTransactions = currentMonthTransactions.filter(
-      t => t.category_id === selectedCategoryId && isExpense(t)
+      t => t.category_id === selectedSubcategoryId && isExpense(t)
     )
 
     categoryTransactions.forEach(t => {
@@ -104,15 +157,17 @@ export default function Dashboard() {
     return Array.from(vendorMap.values())
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 20) // Top 20 vendors
-  }, [selectedCategoryId, currentMonthTransactions])
+  }, [selectedSubcategoryId, currentMonthTransactions])
 
-  const selectedCategory = useMemo(() => {
+  const selectedParentCategory = useMemo(() => {
     if (!selectedCategoryId) return null
-    return categoryBreakdown.find(c => {
-      const category = categories.find(cat => getCategoryDisplayName(cat) === c.name)
-      return category?.id === selectedCategoryId
-    })
-  }, [selectedCategoryId, categoryBreakdown, categories, getCategoryDisplayName])
+    return categoryBreakdown.find(c => c.id === selectedCategoryId)
+  }, [selectedCategoryId, categoryBreakdown])
+
+  const selectedSubcategory = useMemo(() => {
+    if (!selectedSubcategoryId) return null
+    return subcategoryBreakdown.find(c => c.id === selectedSubcategoryId)
+  }, [selectedSubcategoryId, subcategoryBreakdown])
 
   // Monthly trends (last 6 months)
   const monthlyTrends = useMemo(() => {
@@ -261,12 +316,16 @@ export default function Dashboard() {
               {categoryBreakdown.map((category, index) => {
                 const percentage = (category.amount / stats.expenses) * 100
                 const barWidth = (category.amount / maxCategoryAmount) * 100
-                const categoryObj = categories.find(c => getCategoryDisplayName(c) === category.name)
+                const subcategories = getSubcategories(category.id)
+                const hasSubcategories = subcategories.length > 0
 
                 return (
                   <div
                     key={index}
-                    onClick={() => categoryObj && setSelectedCategoryId(categoryObj.id)}
+                    onClick={() => {
+                      setSelectedCategoryId(category.id)
+                      setSelectedSubcategoryId(null)
+                    }}
                     className="cursor-pointer hover:bg-gray-50 p-3 rounded-md transition-colors -mx-3"
                   >
                     <div className="flex justify-between items-baseline mb-1">
@@ -282,7 +341,7 @@ export default function Dashboard() {
                       />
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">
-                      {category.count} transaction{category.count !== 1 ? 's' : ''} • Click to see vendors
+                      {category.count} transaction{category.count !== 1 ? 's' : ''} • Click to see {hasSubcategories ? 'subcategories' : 'details'}
                     </div>
                   </div>
                 )
@@ -420,11 +479,14 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Category Vendor Drill-Down Modal */}
-      {selectedCategoryId && selectedCategory && (
+      {/* Category Drill-Down Modal (3 levels: Parent → Subcategories → Vendors) */}
+      {selectedCategoryId && selectedParentCategory && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedCategoryId(null)}
+          onClick={() => {
+            setSelectedCategoryId(null)
+            setSelectedSubcategoryId(null)
+          }}
         >
           <div
             className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden"
@@ -434,13 +496,34 @@ export default function Dashboard() {
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
               <div className="flex justify-between items-start">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{selectedCategory.name}</h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Top vendors for {currentMonthName}
-                  </p>
+                  {selectedSubcategoryId && selectedSubcategory ? (
+                    <>
+                      <div className="flex items-center space-x-2 text-sm text-gray-500 mb-1">
+                        <button
+                          onClick={() => setSelectedSubcategoryId(null)}
+                          className="hover:text-blue-600 transition-colors"
+                        >
+                          {selectedParentCategory.name}
+                        </button>
+                        <span>→</span>
+                      </div>
+                      <h2 className="text-2xl font-bold text-gray-900">{selectedSubcategory.name}</h2>
+                      <p className="text-sm text-gray-600 mt-1">Top vendors for {currentMonthName}</p>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-2xl font-bold text-gray-900">{selectedParentCategory.name}</h2>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {subcategoryBreakdown.length > 0 ? `Subcategories for ${currentMonthName}` : `Top vendors for ${currentMonthName}`}
+                      </p>
+                    </>
+                  )}
                 </div>
                 <button
-                  onClick={() => setSelectedCategoryId(null)}
+                  onClick={() => {
+                    setSelectedCategoryId(null)
+                    setSelectedSubcategoryId(null)
+                  }}
                   className="text-gray-400 hover:text-gray-600 transition-colors"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -449,55 +532,88 @@ export default function Dashboard() {
                 </button>
               </div>
 
-              {/* Category Summary */}
+              {/* Summary */}
               <div className="mt-4 grid grid-cols-2 gap-4">
                 <div className="bg-white rounded-md p-3 border border-gray-200">
                   <div className="text-xs text-gray-500 uppercase font-medium">Total Spent</div>
                   <div className="text-xl font-bold text-red-600 mt-1">
-                    {formatCurrency(selectedCategory.amount)}
+                    {formatCurrency(selectedSubcategory ? selectedSubcategory.amount : selectedParentCategory.amount)}
                   </div>
                 </div>
                 <div className="bg-white rounded-md p-3 border border-gray-200">
                   <div className="text-xs text-gray-500 uppercase font-medium">Transactions</div>
                   <div className="text-xl font-bold text-gray-900 mt-1">
-                    {selectedCategory.count}
+                    {selectedSubcategory ? selectedSubcategory.count : selectedParentCategory.count}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Modal Body - Vendor List */}
+            {/* Modal Body - Show subcategories OR vendors */}
             <div className="overflow-y-auto max-h-96 p-6">
-              {selectedCategoryVendors.length === 0 ? (
-                <p className="text-gray-500 text-center py-8">No vendor data available</p>
-              ) : (
+              {selectedSubcategoryId ? (
+                // Show vendors for selected subcategory
+                vendorBreakdown.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No vendor data available</p>
+                ) : (
+                  <div className="space-y-3">
+                    {vendorBreakdown.map((vendor, index) => {
+                      const percentage = selectedSubcategory ? (vendor.amount / selectedSubcategory.amount) * 100 : 0
+                      const maxAmount = Math.max(...vendorBreakdown.map(v => v.amount), 1)
+                      const barWidth = (vendor.amount / maxAmount) * 100
+
+                      return (
+                        <div key={index} className="border-b border-gray-100 pb-3 last:border-0">
+                          <div className="flex justify-between items-baseline mb-2">
+                            <span className="text-sm font-medium text-gray-900">{vendor.vendor}</span>
+                            <span className="text-sm text-gray-600">
+                              {formatCurrency(vendor.amount)} ({percentage.toFixed(1)}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
+                            <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${barWidth}%` }} />
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {vendor.count} transaction{vendor.count !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              ) : subcategoryBreakdown.length > 0 ? (
+                // Show subcategories for parent category
                 <div className="space-y-3">
-                  {selectedCategoryVendors.map((vendor, index) => {
-                    const percentage = (vendor.amount / selectedCategory.amount) * 100
-                    const maxVendorAmount = Math.max(...selectedCategoryVendors.map(v => v.amount), 1)
-                    const barWidth = (vendor.amount / maxVendorAmount) * 100
+                  {subcategoryBreakdown.map((subcat, index) => {
+                    const percentage = (subcat.amount / selectedParentCategory.amount) * 100
+                    const maxAmount = Math.max(...subcategoryBreakdown.map(s => s.amount), 1)
+                    const barWidth = (subcat.amount / maxAmount) * 100
 
                     return (
-                      <div key={index} className="border-b border-gray-100 pb-3 last:border-0">
+                      <div
+                        key={index}
+                        onClick={() => setSelectedSubcategoryId(subcat.id)}
+                        className="border-b border-gray-100 pb-3 last:border-0 cursor-pointer hover:bg-gray-50 p-3 rounded-md transition-colors -mx-3"
+                      >
                         <div className="flex justify-between items-baseline mb-2">
-                          <span className="text-sm font-medium text-gray-900">{vendor.vendor}</span>
+                          <span className="text-sm font-medium text-gray-900">{subcat.name}</span>
                           <span className="text-sm text-gray-600">
-                            {formatCurrency(vendor.amount)} ({percentage.toFixed(1)}%)
+                            {formatCurrency(subcat.amount)} ({percentage.toFixed(1)}%)
                           </span>
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div
-                            className="bg-blue-600 h-1.5 rounded-full"
-                            style={{ width: `${barWidth}%` }}
-                          />
+                          <div className="bg-purple-600 h-1.5 rounded-full" style={{ width: `${barWidth}%` }} />
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          {vendor.count} transaction{vendor.count !== 1 ? 's' : ''}
+                          {subcat.count} transaction{subcat.count !== 1 ? 's' : ''} • Click to see vendors
                         </div>
                       </div>
                     )
                   })}
                 </div>
+              ) : (
+                // Parent has no subcategories - this shouldn't normally happen with the current logic
+                <p className="text-gray-500 text-center py-8">No data available</p>
               )}
             </div>
 
@@ -505,10 +621,19 @@ export default function Dashboard() {
             <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
               <div className="flex justify-between items-center">
                 <p className="text-xs text-gray-500">
-                  Showing top {selectedCategoryVendors.length} vendor{selectedCategoryVendors.length !== 1 ? 's' : ''}
+                  {selectedSubcategoryId ? (
+                    <>Showing top {vendorBreakdown.length} vendor{vendorBreakdown.length !== 1 ? 's' : ''}</>
+                  ) : subcategoryBreakdown.length > 0 ? (
+                    <>Showing {subcategoryBreakdown.length} subcategor{subcategoryBreakdown.length !== 1 ? 'ies' : 'y'}</>
+                  ) : (
+                    <>No data</>
+                  )}
                 </p>
                 <button
-                  onClick={() => setSelectedCategoryId(null)}
+                  onClick={() => {
+                    setSelectedCategoryId(null)
+                    setSelectedSubcategoryId(null)
+                  }}
                   className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
                 >
                   Close
