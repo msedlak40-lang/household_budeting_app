@@ -199,7 +199,7 @@ export default function Dashboard() {
 
   // Analysis tab: Group transactions by selected dimension
   const groupedData = useMemo(() => {
-    const groups = new Map<string, { name: string; amount: number; count: number }>()
+    const groups = new Map<string, { id: string; name: string; amount: number; count: number }>()
 
     filteredTransactions.forEach(t => {
       if (!isExpense(t)) return
@@ -248,8 +248,9 @@ export default function Dashboard() {
           break
       }
 
-      const existing = groups.get(groupKey) || { name: groupName, amount: 0, count: 0 }
+      const existing = groups.get(groupKey) || { id: groupKey, name: groupName, amount: 0, count: 0 }
       groups.set(groupKey, {
+        id: groupKey,
         name: groupName,
         amount: existing.amount + Math.abs(t.amount),
         count: existing.count + 1,
@@ -1042,7 +1043,7 @@ export default function Dashboard() {
                       onClick={() => {
                         // Start drill-down
                         setAnalysisDrillDown({
-                          level1: { type: groupBy, id: group.name, name: group.name }
+                          level1: { type: groupBy, id: group.id, name: group.name }
                         })
                       }}
                     >
