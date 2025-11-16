@@ -3,6 +3,7 @@ import { useTransactions } from '@/hooks/useTransactions'
 import { useCategories } from '@/hooks/useCategories'
 import { useMembers } from '@/hooks/useMembers'
 import { useRules } from '@/hooks/useRules'
+import { isExpense } from '@/lib/transactionUtils'
 
 export default function Inbox() {
   const { transactions, loading, updateTransaction, refetch: refetchTransactions } = useTransactions()
@@ -212,7 +213,7 @@ export default function Inbox() {
             </div>
             <div>
               <div className="text-xs text-gray-500 uppercase font-medium mb-1">Amount</div>
-              <div className={`text-sm font-bold ${currentTransaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+              <div className={`text-sm font-bold ${isExpense(currentTransaction) ? 'text-red-600' : 'text-green-600'}`}>
                 {formatCurrency(currentTransaction.amount)}
               </div>
             </div>
@@ -349,7 +350,7 @@ export default function Inbox() {
                 }`}
               >
                 <div className="font-medium truncate">{transaction.vendor || transaction.description}</div>
-                <div className={`text-xs ${transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                <div className={`text-xs ${isExpense(transaction) ? 'text-red-600' : 'text-green-600'}`}>
                   {formatCurrency(transaction.amount)}
                 </div>
               </button>

@@ -15,7 +15,7 @@ export interface Transaction {
 }
 
 export interface TransactionWithDetails extends Transaction {
-  account?: { id: string; name: string }
+  account?: { id: string; name: string; account_type: string | null }
   category?: { id: string; name: string }
   member?: { id: string; name: string }
 }
@@ -38,7 +38,7 @@ export function useTransactions(accountId?: string) {
           .from('transactions')
           .select(`
             *,
-            account:accounts(id, name),
+            account:accounts(id, name, account_type),
             category:categories(id, name),
             member:household_members(id, name)
           `)
@@ -88,7 +88,7 @@ export function useTransactions(accountId?: string) {
         .from('transactions')
         .select(`
           *,
-          account:accounts(id, name),
+          account:accounts(id, name, account_type),
           category:categories(id, name),
           member:household_members(id, name)
         `)
@@ -222,7 +222,7 @@ export function useTransactions(accountId?: string) {
         .from('transactions')
         .select(`
           *,
-          account:accounts(id, name),
+          account:accounts(id, name, account_type),
           category:categories(id, name),
           member:household_members(id, name)
         `)

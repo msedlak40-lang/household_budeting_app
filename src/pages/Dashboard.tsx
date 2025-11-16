@@ -1,6 +1,7 @@
 import { useTransactions } from '@/hooks/useTransactions'
 import { useCategories } from '@/hooks/useCategories'
 import { useMemo, useState } from 'react'
+import { isExpense, isIncome } from '@/lib/transactionUtils'
 
 export default function Dashboard() {
   const { transactions, loading } = useTransactions()
@@ -27,12 +28,12 @@ export default function Dashboard() {
   // Calculate summary stats
   const stats = useMemo(() => {
     const expenses = currentMonthTransactions
-      .filter(t => t.amount < 0)
+      .filter(t => isExpense(t))
       .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
     const income = currentMonthTransactions
-      .filter(t => t.amount > 0)
-      .reduce((sum, t) => sum + t.amount, 0)
+      .filter(t => isIncome(t))
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
     const uncategorized = transactions.filter(t => !t.category_id).length
 
@@ -48,7 +49,7 @@ export default function Dashboard() {
   const categoryBreakdown = useMemo(() => {
     const breakdown = new Map<string, { name: string; amount: number; count: number }>()
 
-    const categorizedExpenses = currentMonthTransactions.filter(t => t.amount < 0 && t.category_id)
+    const categorizedExpenses = currentMonthTransactions.filter(t => isExpense(t) && t.category_id)
     console.log('[Dashboard] Current month categorized expenses:', categorizedExpenses.length)
     console.log('[Dashboard] Sample categorized expense:', categorizedExpenses[0])
 
@@ -92,12 +93,12 @@ export default function Dashboard() {
       })
 
       const expenses = monthTransactions
-        .filter(t => t.amount < 0)
+        .filter(t => isExpense(t))
         .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
       const income = monthTransactions
-        .filter(t => t.amount > 0)
-        .reduce((sum, t) => sum + t.amount, 0)
+        .filter(t => isIncome(t))
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0)
 
       trends.push({
         month: date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
@@ -259,13 +260,13 @@ export default function Dashboard() {
             <div className="flex justify-between">
               <span className="text-gray-600">Expense Transactions:</span>
               <span className="font-semibold text-red-600">
-                {currentMonthTransactions.filter(t => t.amount < 0).length}
+                {currentMonthTransactions.filter(t => isExpense(t)).length}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Income Transactions:</span>
               <span className="font-semibold text-green-600">
-                {currentMonthTransactions.filter(t => t.amount > 0).length}
+                {currentMonthTransactions.filter(t => isIncome(t)).length}
               </span>
             </div>
             <div className="flex justify-between">

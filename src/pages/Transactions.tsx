@@ -6,6 +6,7 @@ import { useMembers } from '@/hooks/useMembers'
 import { useRules } from '@/hooks/useRules'
 import { suggestCategories } from '@/lib/categorySuggestions'
 import CSVImport from '@/components/transactions/CSVImport'
+import { isExpense, isIncome } from '@/lib/transactionUtils'
 
 export default function Transactions() {
   const { accounts } = useAccounts()
@@ -616,12 +617,12 @@ export default function Transactions() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
                       <div className="flex items-center justify-end space-x-2">
-                        {transaction.amount > 0 && (
+                        {isIncome(transaction) && (
                           <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
                             CREDIT
                           </span>
                         )}
-                        <span className={transaction.amount < 0 ? 'text-red-600' : 'text-green-600'}>
+                        <span className={isExpense(transaction) ? 'text-red-600' : 'text-green-600'}>
                           {formatCurrency(transaction.amount)}
                         </span>
                       </div>
@@ -654,19 +655,22 @@ export default function Transactions() {
               <div>
                 <div className="text-xs text-gray-500 uppercase">Total Expenses</div>
                 <div className="text-lg font-bold text-red-600">
-                  {formatCurrency(filteredTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + t.amount, 0))}
+                  {formatCurrency(-Math.abs(filteredTransactions.filter(t => isExpense(t)).reduce((sum, t) => sum + Math.abs(t.amount), 0)))}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-gray-500 uppercase">Total Credits</div>
                 <div className="text-lg font-bold text-green-600">
-                  {formatCurrency(filteredTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0))}
+                  {formatCurrency(filteredTransactions.filter(t => isIncome(t)).reduce((sum, t) => sum + Math.abs(t.amount), 0))}
                 </div>
               </div>
               <div>
                 <div className="text-xs text-gray-500 uppercase">Net Total</div>
                 <div className="text-lg font-bold text-gray-900">
-                  {formatCurrency(filteredTransactions.reduce((sum, t) => sum + t.amount, 0))}
+                  {formatCurrency(
+                    filteredTransactions.filter(t => isIncome(t)).reduce((sum, t) => sum + Math.abs(t.amount), 0) -
+                    filteredTransactions.filter(t => isExpense(t)).reduce((sum, t) => sum + Math.abs(t.amount), 0)
+                  )}
                 </div>
               </div>
             </div>
