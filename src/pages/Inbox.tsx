@@ -138,7 +138,7 @@ export default function Inbox() {
       <div>
         <h1 className="text-3xl font-bold">Categorization Inbox</h1>
         <p className="text-gray-600 mt-1">
-          Categorize your uncategorized transactions
+          Your primary tool for categorizing transactions - focused, one-at-a-time workflow
         </p>
       </div>
 

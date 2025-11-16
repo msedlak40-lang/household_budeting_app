@@ -226,6 +226,8 @@ export default function Transactions() {
     return true
   })
 
+  const uncategorizedCount = transactions.filter(t => !t.category_id).length
+
   const hasActiveFilters = filterAccount || filterCategory || filterMember || searchText ||
     dateFrom || dateTo || amountMin || amountMax || showUncategorizedOnly
 
@@ -260,7 +262,7 @@ export default function Transactions() {
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Transactions</h1>
+        <h1 className="text-3xl font-bold">All Transactions</h1>
         <button
           onClick={() => setShowImport(!showImport)}
           className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
@@ -270,6 +272,31 @@ export default function Transactions() {
       </div>
 
       {showImport && <CSVImport />}
+
+      {/* Categorization Banner */}
+      {uncategorizedCount > 0 && (
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-bold mb-2">
+                {uncategorizedCount} Transaction{uncategorizedCount !== 1 ? 's' : ''} Need{uncategorizedCount === 1 ? 's' : ''} Categorization
+              </h3>
+              <p className="text-blue-100 mb-4">
+                Use the Inbox for a focused, one-at-a-time categorization workflow. This page is for reviewing all transactions.
+              </p>
+              <a
+                href="/inbox"
+                className="inline-flex items-center px-4 py-2 bg-white text-blue-600 font-medium rounded-md hover:bg-blue-50 transition-colors"
+              >
+                Go to Inbox →
+              </a>
+            </div>
+            <div className="hidden md:block">
+              <div className="text-6xl font-bold opacity-20">📥</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Search and Filter Controls */}
       <div className="bg-white rounded-lg shadow mb-6">
@@ -623,10 +650,10 @@ export default function Transactions() {
       )}
 
       {transactions.length > 0 && (
-        <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-          <p className="text-sm text-blue-900">
-            <strong>Next step:</strong> Go to the Inbox page to categorize your transactions and create rules for automatic categorization.
-            Once categorized, view your spending analysis on the Dashboard!
+        <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+          <p className="text-sm text-gray-700">
+            <strong>💡 About this page:</strong> This is your complete transaction ledger - view, search, filter, and edit all transactions.
+            For categorizing uncategorized transactions, use the <a href="/inbox" className="text-blue-600 hover:underline font-medium">Inbox</a>.
           </p>
         </div>
       )}

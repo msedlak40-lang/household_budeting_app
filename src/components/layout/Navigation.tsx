@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTransactions } from '@/hooks/useTransactions'
 
 const navItems = [
   { path: '/', label: 'Dashboard' },
@@ -9,7 +10,7 @@ const navItems = [
   { path: '/categories', label: 'Categories' },
   { path: '/rules', label: 'Rules' },
   { path: '/transactions', label: 'Transactions' },
-  { path: '/inbox', label: 'Inbox' },
+  { path: '/inbox', label: 'Inbox', showBadge: true },
   { path: '/recurring', label: 'Recurring' },
   { path: '/analysis', label: 'Analysis' },
 ]
@@ -18,6 +19,9 @@ export default function Navigation() {
   const location = useLocation()
   const navigate = useNavigate()
   const { signOut, user } = useAuth()
+  const { transactions } = useTransactions()
+
+  const uncategorizedCount = transactions.filter(t => !t.category_id).length
 
   const handleLogout = async () => {
     await signOut()
@@ -38,13 +42,18 @@ export default function Navigation() {
                   key={item.path}
                   to={item.path}
                   className={cn(
-                    'inline-flex items-center px-3 py-2 text-sm font-medium rounded-md',
+                    'inline-flex items-center px-3 py-2 text-sm font-medium rounded-md relative',
                     location.pathname === item.path
                       ? 'bg-gray-100 text-gray-900'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   )}
                 >
                   {item.label}
+                  {item.showBadge && uncategorizedCount > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold leading-none text-white bg-red-600 rounded-full">
+                      {uncategorizedCount}
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>
