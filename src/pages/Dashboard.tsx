@@ -11,6 +11,9 @@ export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
 
+  // State for category drill-down modal
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
+
   // Debug: Log transactions to see what we have
   console.log('[Dashboard] Total transactions:', transactions.length)
   console.log('[Dashboard] Categorized transactions:', transactions.filter(t => t.category_id).length)
@@ -76,6 +79,40 @@ export default function Dashboard() {
     console.log('[Dashboard] Category breakdown:', result)
     return result
   }, [currentMonthTransactions, categories, getCategoryDisplayName])
+
+  // Get vendor breakdown for selected category
+  const selectedCategoryVendors = useMemo(() => {
+    if (!selectedCategoryId) return []
+
+    const vendorMap = new Map<string, { vendor: string; amount: number; count: number }>()
+
+    // Get all transactions for this category in the current month
+    const categoryTransactions = currentMonthTransactions.filter(
+      t => t.category_id === selectedCategoryId && isExpense(t)
+    )
+
+    categoryTransactions.forEach(t => {
+      const vendor = t.vendor || t.description || 'Unknown'
+      const existing = vendorMap.get(vendor) || { vendor, amount: 0, count: 0 }
+      vendorMap.set(vendor, {
+        vendor,
+        amount: existing.amount + Math.abs(t.amount),
+        count: existing.count + 1,
+      })
+    })
+
+    return Array.from(vendorMap.values())
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 20) // Top 20 vendors
+  }, [selectedCategoryId, currentMonthTransactions])
+
+  const selectedCategory = useMemo(() => {
+    if (!selectedCategoryId) return null
+    return categoryBreakdown.find(c => {
+      const category = categories.find(cat => getCategoryDisplayName(cat) === c.name)
+      return category?.id === selectedCategoryId
+    })
+  }, [selectedCategoryId, categoryBreakdown, categories, getCategoryDisplayName])
 
   // Monthly trends (last 6 months)
   const monthlyTrends = useMemo(() => {
@@ -224,9 +261,14 @@ export default function Dashboard() {
               {categoryBreakdown.map((category, index) => {
                 const percentage = (category.amount / stats.expenses) * 100
                 const barWidth = (category.amount / maxCategoryAmount) * 100
+                const categoryObj = categories.find(c => getCategoryDisplayName(c) === category.name)
 
                 return (
-                  <div key={index}>
+                  <div
+                    key={index}
+                    onClick={() => categoryObj && setSelectedCategoryId(categoryObj.id)}
+                    className="cursor-pointer hover:bg-gray-50 p-3 rounded-md transition-colors -mx-3"
+                  >
                     <div className="flex justify-between items-baseline mb-1">
                       <span className="text-sm font-medium text-gray-900">{category.name}</span>
                       <span className="text-sm text-gray-600">
@@ -239,7 +281,9 @@ export default function Dashboard() {
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
-                    <div className="text-xs text-gray-500 mt-0.5">{category.count} transaction{category.count !== 1 ? 's' : ''}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {category.count} transaction{category.count !== 1 ? 's' : ''} • Click to see vendors
+                    </div>
                   </div>
                 )
               })}
@@ -375,6 +419,105 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Category Vendor Drill-Down Modal */}
+      {selectedCategoryId && selectedCategory && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={() => setSelectedCategoryId(null)}
+        >
+          <div
+            className="bg-white rounded-lg max-w-2xl w-full max-h-[80vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{selectedCategory.name}</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Top vendors for {currentMonthName}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedCategoryId(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Category Summary */}
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div className="bg-white rounded-md p-3 border border-gray-200">
+                  <div className="text-xs text-gray-500 uppercase font-medium">Total Spent</div>
+                  <div className="text-xl font-bold text-red-600 mt-1">
+                    {formatCurrency(selectedCategory.amount)}
+                  </div>
+                </div>
+                <div className="bg-white rounded-md p-3 border border-gray-200">
+                  <div className="text-xs text-gray-500 uppercase font-medium">Transactions</div>
+                  <div className="text-xl font-bold text-gray-900 mt-1">
+                    {selectedCategory.count}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body - Vendor List */}
+            <div className="overflow-y-auto max-h-96 p-6">
+              {selectedCategoryVendors.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No vendor data available</p>
+              ) : (
+                <div className="space-y-3">
+                  {selectedCategoryVendors.map((vendor, index) => {
+                    const percentage = (vendor.amount / selectedCategory.amount) * 100
+                    const maxVendorAmount = Math.max(...selectedCategoryVendors.map(v => v.amount), 1)
+                    const barWidth = (vendor.amount / maxVendorAmount) * 100
+
+                    return (
+                      <div key={index} className="border-b border-gray-100 pb-3 last:border-0">
+                        <div className="flex justify-between items-baseline mb-2">
+                          <span className="text-sm font-medium text-gray-900">{vendor.vendor}</span>
+                          <span className="text-sm text-gray-600">
+                            {formatCurrency(vendor.amount)} ({percentage.toFixed(1)}%)
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full"
+                            style={{ width: `${barWidth}%` }}
+                          />
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {vendor.count} transaction{vendor.count !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-gray-500">
+                  Showing top {selectedCategoryVendors.length} vendor{selectedCategoryVendors.length !== 1 ? 's' : ''}
+                </p>
+                <button
+                  onClick={() => setSelectedCategoryId(null)}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

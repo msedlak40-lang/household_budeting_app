@@ -8,6 +8,7 @@ export interface Transaction {
   date: string
   description: string
   amount: number
+  vendor?: string | null
   category_id: string | null
   member_id: string | null
   created_at: string
