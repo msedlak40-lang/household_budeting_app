@@ -12,7 +12,6 @@ const navItems = [
   { path: '/transactions', label: 'Transactions' },
   { path: '/inbox', label: 'Inbox', showBadge: true },
   { path: '/recurring', label: 'Recurring' },
-  { path: '/analysis', label: 'Analysis' },
 ]
 
 export default function Navigation() {
