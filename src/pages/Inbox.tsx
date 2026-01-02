@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useCategories } from '@/hooks/useCategories'
 import { useMembers } from '@/hooks/useMembers'
@@ -29,6 +29,14 @@ export default function Inbox() {
   const progress = uncategorizedTransactions.length > 0
     ? ((currentIndex / uncategorizedTransactions.length) * 100)
     : 100
+
+  // Reset form when transaction changes (defensive - ensures clean state)
+  useEffect(() => {
+    setSelectedParentCategory('')
+    setSelectedSubcategory('')
+    setSelectedMember('')
+    setCreateRule(false)
+  }, [currentTransaction?.id])
 
   const formatCurrency = (amount: number) => {
     const formatted = Math.abs(amount).toFixed(2)
@@ -63,18 +71,23 @@ export default function Inbox() {
 
       // Create rule and apply to existing transactions if requested
       if (createRule && categoryId) {
+        // Use vendor for pattern if available (better matching), otherwise description
+        const pattern = currentTransaction.vendor || currentTransaction.description
+
         // Create the rule
         await addRule(
-          currentTransaction.description,
+          pattern,
           categoryId,
           selectedMember || null
         )
 
-        // Find all other uncategorized transactions that match this description
+        // Find all other uncategorized transactions that match this pattern
+        const patternLower = pattern.toLowerCase()
         const matchingTransactions = transactions.filter(t =>
           !t.category_id &&
           t.id !== currentTransaction.id && // Exclude current transaction (already updated)
-          t.description.toLowerCase().includes(currentTransaction.description.toLowerCase())
+          ((t.vendor && t.vendor.toLowerCase().includes(patternLower)) ||
+           t.description.toLowerCase().includes(patternLower))
         )
 
         // Apply the categorization to all matching uncategorized transactions
