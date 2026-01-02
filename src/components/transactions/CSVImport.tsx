@@ -4,6 +4,7 @@ import { useAccounts } from '@/hooks/useAccounts'
 import { useTransactions } from '@/hooks/useTransactions'
 import { useRules } from '@/hooks/useRules'
 import { extractVendor, createTransactionHash } from '@/lib/vendorExtraction'
+import { normalizeVendor } from '@/lib/vendorNormalization'
 
 interface ParsedRow {
   [key: string]: string
@@ -183,6 +184,7 @@ export default function CSVImport() {
         const date = parseDate(row[columnMapping.date])
         const amount = parseAmount(row[columnMapping.amount])
         const vendor = extractVendor(description)
+        const normalized = normalizeVendor(description)
         const transactionHash = createTransactionHash(date, description, amount, selectedAccount)
 
         return {
@@ -190,6 +192,7 @@ export default function CSVImport() {
           description,
           amount,
           vendor,
+          normalized_vendor: normalized.normalized,
           transaction_hash: transactionHash,
           category_id: categoryId,
           member_id: memberId,

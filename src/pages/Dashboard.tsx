@@ -4,6 +4,7 @@ import { useMembers } from '@/hooks/useMembers'
 import { useAccounts } from '@/hooks/useAccounts'
 import { useMemo, useState } from 'react'
 import { isExpense, isIncome } from '@/lib/transactionUtils'
+import { getDisplayVendor } from '@/lib/vendorNormalization'
 
 type GroupBy = 'parent_category' | 'subcategory' | 'member' | 'vendor' | 'account'
 type ChartType = 'line' | 'bar' | 'pie'
@@ -77,8 +78,9 @@ export default function Dashboard() {
           break
 
         case 'vendor':
-          groupKey = t.vendor || t.description
-          groupName = t.vendor || t.description
+          const displayVendor = getDisplayVendor(t)
+          groupKey = displayVendor
+          groupName = displayVendor
           break
 
         case 'account':
@@ -169,7 +171,7 @@ export default function Dashboard() {
           const parentId = cat.parent_category_id || cat.id
           return parentId === id
         }
-        if (type === 'vendor') return (t.vendor || t.description) === id
+        if (type === 'vendor') return getDisplayVendor(t) === id
         return false
       })
     }
@@ -185,7 +187,7 @@ export default function Dashboard() {
           return parentId === id
         }
         if (type === 'subcategory') return t.category_id === id
-        if (type === 'vendor') return (t.vendor || t.description) === id
+        if (type === 'vendor') return getDisplayVendor(t) === id
         return false
       })
     }
@@ -194,7 +196,7 @@ export default function Dashboard() {
       const { type, id } = analysisDrillDown.level3
       relevantTransactions = relevantTransactions.filter(t => {
         if (type === 'subcategory') return t.category_id === id
-        if (type === 'vendor') return (t.vendor || t.description) === id
+        if (type === 'vendor') return getDisplayVendor(t) === id
         return false
       })
     }
@@ -248,8 +250,9 @@ export default function Dashboard() {
         groupKey = t.category_id
         groupName = cat.name
       } else if (nextGroupType === 'vendor') {
-        groupKey = t.vendor || t.description
-        groupName = t.vendor || t.description
+        const displayVendor = getDisplayVendor(t)
+        groupKey = displayVendor
+        groupName = displayVendor
       }
 
       if (!groupKey) return
