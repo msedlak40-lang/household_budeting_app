@@ -36,6 +36,14 @@ export default function Transactions() {
   const [categorySuggestions, setCategorySuggestions] = useState<string[]>([])
   const tableRef = useRef<HTMLDivElement>(null)
 
+  // Local editing state - stores pending changes per transaction
+  const [editingState, setEditingState] = useState<Record<string, {
+    parentCategoryId: string
+    subcategoryId: string
+    memberId: string
+  }>>({})
+  const [savingTransactionId, setSavingTransactionId] = useState<string | null>(null)
+
   // Update category suggestions when name changes
   useEffect(() => {
     if (newCategoryName.trim().length > 2) {
@@ -69,44 +77,7 @@ export default function Transactions() {
     }
   }
 
-  const handleParentCategoryChange = async (transactionId: string, parentCategoryId: string) => {
-    // Check if user wants to add a new category
-    if (parentCategoryId === '__ADD_NEW__') {
-      setPendingTransactionId(transactionId)
-      setShowAddCategory(true)
-      return
-    }
-
-    // When parent changes, set it as the category (no subcategory selected)
-    const { error } = await updateTransaction(transactionId, {
-      category_id: parentCategoryId || null,
-    })
-    if (error) {
-      alert(`Error: ${error}`)
-    } else {
-      showSaveNotification('Category saved!')
-    }
-  }
-
-  const handleSubcategoryChange = async (transactionId: string, subcategoryId: string) => {
-    // Get current transaction to find its current parent category
-    const transaction = transactions.find(t => t.id === transactionId)
-    if (!transaction) return
-
-    // If subcategory is selected, use it; otherwise keep parent category
-    const categoryIdToSet = subcategoryId || transaction.category_id
-
-    const { error } = await updateTransaction(transactionId, {
-      category_id: categoryIdToSet,
-    })
-    if (error) {
-      alert(`Error: ${error}`)
-    } else {
-      showSaveNotification('Subcategory saved!')
-    }
-  }
-
-  // Helper to get parent and subcategory for a transaction
+  // Helper to get parent and subcategory for a transaction (from database)
   const getCategorySelection = (transaction: typeof transactions[0]) => {
     if (!transaction.category_id) {
       return { parentId: '', subcategoryId: '' }
@@ -124,6 +95,117 @@ export default function Transactions() {
 
     // If this is a parent category, return it as parent with no subcategory
     return { parentId: category.id, subcategoryId: '' }
+  }
+
+  // Get the current editing values for a transaction (local state or database values)
+  const getEditingValues = (transaction: typeof transactions[0]) => {
+    const localState = editingState[transaction.id]
+    if (localState) {
+      return localState
+    }
+    // No local edits, return database values
+    const { parentId, subcategoryId } = getCategorySelection(transaction)
+    return {
+      parentCategoryId: parentId,
+      subcategoryId: subcategoryId,
+      memberId: transaction.member_id || ''
+    }
+  }
+
+  // Check if transaction has pending edits
+  const hasUnsavedChanges = (transaction: typeof transactions[0]) => {
+    const localState = editingState[transaction.id]
+    if (!localState) return false
+
+    const { parentId, subcategoryId } = getCategorySelection(transaction)
+    const dbMemberId = transaction.member_id || ''
+
+    return (
+      localState.parentCategoryId !== parentId ||
+      localState.subcategoryId !== subcategoryId ||
+      localState.memberId !== dbMemberId
+    )
+  }
+
+  // Update local editing state
+  const updateEditingState = (transactionId: string, field: 'parentCategoryId' | 'subcategoryId' | 'memberId', value: string) => {
+    setEditingState(prev => {
+      const transaction = transactions.find(t => t.id === transactionId)
+      if (!transaction) return prev
+
+      const current = prev[transactionId] || getEditingValues(transaction)
+      const updated = { ...current, [field]: value }
+
+      // If parent category changes, reset subcategory
+      if (field === 'parentCategoryId') {
+        updated.subcategoryId = ''
+      }
+
+      return { ...prev, [transactionId]: updated }
+    })
+  }
+
+  const handleParentCategoryChange = (transactionId: string, parentCategoryId: string) => {
+    // Check if user wants to add a new category
+    if (parentCategoryId === '__ADD_NEW__') {
+      setPendingTransactionId(transactionId)
+      setShowAddCategory(true)
+      return
+    }
+
+    // Update local state only - don't save to database yet
+    updateEditingState(transactionId, 'parentCategoryId', parentCategoryId)
+  }
+
+  const handleSubcategoryChange = (transactionId: string, subcategoryId: string) => {
+    // Update local state only - don't save to database yet
+    updateEditingState(transactionId, 'subcategoryId', subcategoryId)
+  }
+
+  const handleMemberChange = (transactionId: string, memberId: string) => {
+    // Update local state only - don't save to database yet
+    updateEditingState(transactionId, 'memberId', memberId)
+  }
+
+  // Save all pending changes for a transaction
+  const handleSaveTransaction = async (transactionId: string) => {
+    const localState = editingState[transactionId]
+    if (!localState) return
+
+    setSavingTransactionId(transactionId)
+
+    try {
+      // Determine the category ID to save (subcategory takes precedence over parent)
+      const categoryIdToSave = localState.subcategoryId || localState.parentCategoryId || null
+
+      const { error } = await updateTransaction(transactionId, {
+        category_id: categoryIdToSave,
+        member_id: localState.memberId || null,
+      })
+
+      if (error) {
+        alert(`Error: ${error}`)
+      } else {
+        // Clear local editing state for this transaction
+        setEditingState(prev => {
+          const next = { ...prev }
+          delete next[transactionId]
+          return next
+        })
+        showSaveNotification('Transaction saved!')
+      }
+    } finally {
+      setSavingTransactionId(null)
+    }
+  }
+
+  // Cancel pending edits for a transaction
+  const handleCancelEdit = (transactionId: string) => {
+    setEditingState(prev => {
+      const next = { ...prev }
+      delete next[transactionId]
+      return next
+    })
   }
 
   const handleAddCategorySubmit = async (e: React.FormEvent) => {
@@ -152,17 +234,6 @@ export default function Transactions() {
     setNewCategoryParentId('')
     setPendingTransactionId(null)
     setCategorySuggestions([])
-  }
-
-  const handleMemberChange = async (transactionId: string, memberId: string) => {
-    const { error } = await updateTransaction(transactionId, {
-      member_id: memberId || null,
-    })
-    if (error) {
-      alert(`Error: ${error}`)
-    } else {
-      showSaveNotification('Member saved!')
-    }
   }
 
   const handleCreateRule = async (transaction: typeof transactions[0]) => {
@@ -563,48 +634,54 @@ export default function Transactions() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTransactions.map((transaction) => (
-                  <tr key={transaction.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(transaction.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      {transaction.description}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {transaction.account?.name || '—'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <select
-                        value={getCategorySelection(transaction).parentId}
-                        onChange={(e) => handleParentCategoryChange(transaction.id, e.target.value)}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">None</option>
-                        {getParentCategories().map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
+                {filteredTransactions.map((transaction) => {
+                  const editValues = getEditingValues(transaction)
+                  const hasChanges = hasUnsavedChanges(transaction)
+                  const isSaving = savingTransactionId === transaction.id
+                  const subcategories = editValues.parentCategoryId ? getSubcategories(editValues.parentCategoryId) : []
+
+                  return (
+                    <tr key={transaction.id} className={`hover:bg-gray-50 ${hasChanges ? 'bg-yellow-50' : ''}`}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {new Date(transaction.date).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-900">
+                        {transaction.description}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {transaction.account?.name || '—'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <select
+                          value={editValues.parentCategoryId}
+                          onChange={(e) => handleParentCategoryChange(transaction.id, e.target.value)}
+                          disabled={isSaving}
+                          className={`text-xs px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            hasChanges ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">None</option>
+                          {getParentCategories().map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name}
+                            </option>
+                          ))}
+                          <option value="__ADD_NEW__" className="font-semibold text-blue-600">
+                            + Add New
                           </option>
-                        ))}
-                        <option value="__ADD_NEW__" className="font-semibold text-blue-600">
-                          + Add New
-                        </option>
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      {(() => {
-                        const { parentId } = getCategorySelection(transaction)
-                        const subcategories = parentId ? getSubcategories(parentId) : []
-
-                        if (subcategories.length === 0) {
-                          return <span className="text-xs text-gray-400">—</span>
-                        }
-
-                        return (
+                        </select>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {subcategories.length === 0 ? (
+                          <span className="text-xs text-gray-400">—</span>
+                        ) : (
                           <select
-                            value={getCategorySelection(transaction).subcategoryId}
+                            value={editValues.subcategoryId}
                             onChange={(e) => handleSubcategoryChange(transaction.id, e.target.value)}
-                            className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isSaving}
+                            className={`text-xs px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                              hasChanges ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
+                            }`}
                           >
                             <option value="">None</option>
                             {subcategories.map((subcategory) => (
@@ -613,53 +690,79 @@ export default function Transactions() {
                               </option>
                             ))}
                           </select>
-                        )
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <select
-                        value={transaction.member_id || ''}
-                        onChange={(e) => handleMemberChange(transaction.id, e.target.value)}
-                        className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">None</option>
-                        {members.map((member) => (
-                          <option key={member.id} value={member.id}>
-                            {member.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        {isIncome(transaction) && (
-                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
-                            CREDIT
-                          </span>
                         )}
-                        <span className={isExpense(transaction) ? 'text-red-600' : 'text-green-600'}>
-                          {formatCurrency(transaction.amount)}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                      <button
-                        onClick={() => handleCreateRule(transaction)}
-                        disabled={(!transaction.category_id && !transaction.member_id) || savingRuleFor === transaction.id}
-                        className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed"
-                        title={(transaction.category_id || transaction.member_id) ? 'Create rule from this transaction' : 'Assign a category or member first'}
-                      >
-                        {savingRuleFor === transaction.id ? 'Saving...' : 'Create Rule'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(transaction.id, transaction.description)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <select
+                          value={editValues.memberId}
+                          onChange={(e) => handleMemberChange(transaction.id, e.target.value)}
+                          disabled={isSaving}
+                          className={`text-xs px-2 py-1 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                            hasChanges ? 'border-yellow-400 bg-yellow-50' : 'border-gray-300'
+                          }`}
+                        >
+                          <option value="">None</option>
+                          {members.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          {isIncome(transaction) && (
+                            <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-medium">
+                              CREDIT
+                            </span>
+                          )}
+                          <span className={isExpense(transaction) ? 'text-red-600' : 'text-green-600'}>
+                            {formatCurrency(transaction.amount)}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          {hasChanges ? (
+                            <>
+                              <button
+                                onClick={() => handleSaveTransaction(transaction.id)}
+                                disabled={isSaving}
+                                className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                              >
+                                {isSaving ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={() => handleCancelEdit(transaction.id)}
+                                disabled={isSaving}
+                                className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleCreateRule(transaction)}
+                                disabled={(!transaction.category_id && !transaction.member_id) || savingRuleFor === transaction.id}
+                                className="text-blue-600 hover:text-blue-900 disabled:text-gray-400 disabled:cursor-not-allowed text-xs"
+                                title={(transaction.category_id || transaction.member_id) ? 'Create rule from this transaction' : 'Assign a category or member first'}
+                              >
+                                {savingRuleFor === transaction.id ? 'Saving...' : 'Create Rule'}
+                              </button>
+                              <button
+                                onClick={() => handleDelete(transaction.id, transaction.description)}
+                                className="text-red-600 hover:text-red-900 text-xs"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
