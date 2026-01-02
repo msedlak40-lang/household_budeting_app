@@ -236,6 +236,91 @@ export default function Transactions() {
     setCategorySuggestions([])
   }
 
+  // Save and create rule in one action (for pending changes)
+  const handleSaveAndCreateRule = async (transaction: typeof transactions[0]) => {
+    const localState = editingState[transaction.id]
+    if (!localState) return
+
+    // Validate that there's something to save
+    const categoryIdToSave = localState.subcategoryId || localState.parentCategoryId || null
+    const memberIdToSave = localState.memberId || null
+
+    if (!categoryIdToSave && !memberIdToSave) {
+      alert('Please assign a category or member first before creating a rule')
+      return
+    }
+
+    // Save scroll position
+    const scrollPosition = tableRef.current?.scrollTop || 0
+    setSavingRuleFor(transaction.id)
+
+    try {
+      // First, save the transaction
+      const { error: saveError } = await updateTransaction(transaction.id, {
+        category_id: categoryIdToSave,
+        member_id: memberIdToSave,
+      })
+
+      if (saveError) {
+        alert(`Error saving transaction: ${saveError}`)
+        return
+      }
+
+      // Clear local editing state
+      setEditingState(prev => {
+        const next = { ...prev }
+        delete next[transaction.id]
+        return next
+      })
+
+      // Create the rule
+      await addRule(
+        transaction.description,
+        categoryIdToSave,
+        memberIdToSave
+      )
+
+      // Find all uncategorized transactions that match this description
+      const matchingTransactions = transactions.filter(t =>
+        !t.category_id &&
+        t.id !== transaction.id && // Exclude current transaction (already updated)
+        t.description.toLowerCase().includes(transaction.description.toLowerCase())
+      )
+
+      // Apply the categorization to all matching uncategorized transactions
+      let updatedCount = 0
+      for (const matchingTx of matchingTransactions) {
+        const { error } = await updateTransaction(matchingTx.id, {
+          category_id: categoryIdToSave,
+          member_id: memberIdToSave,
+        })
+        if (!error) {
+          updatedCount++
+        }
+      }
+
+      const message = updatedCount > 0
+        ? `Saved & rule created! Applied to ${updatedCount} other transaction${updatedCount !== 1 ? 's' : ''}.`
+        : `Saved & rule created! Future matching transactions will auto-categorize.`
+
+      showSaveNotification(message)
+
+      // Refresh all transactions
+      await refetchTransactions()
+
+      // Restore scroll position
+      setTimeout(() => {
+        if (tableRef.current) {
+          tableRef.current.scrollTop = scrollPosition
+        }
+      }, 100)
+    } catch (error) {
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setSavingRuleFor(null)
+    }
+  }
+
   const handleCreateRule = async (transaction: typeof transactions[0]) => {
     if (!transaction.category_id && !transaction.member_id) {
       alert('Please assign a category or member first before creating a rule')
@@ -283,7 +368,7 @@ export default function Transactions() {
         ? `Rule created and applied to ${updatedCount} existing uncategorized transaction${updatedCount !== 1 ? 's' : ''}! Future transactions with "${transaction.description}" will auto-categorize to ${ruleType}.`
         : `Rule created! Future transactions with "${transaction.description}" will auto-categorize to ${ruleType}.`
 
-      alert(message)
+      showSaveNotification(message)
 
       // Refresh all transactions to ensure Dashboard and other pages see the updates
       await refetchTransactions()
@@ -727,14 +812,22 @@ export default function Transactions() {
                             <>
                               <button
                                 onClick={() => handleSaveTransaction(transaction.id)}
-                                disabled={isSaving}
+                                disabled={isSaving || savingRuleFor === transaction.id}
                                 className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
                               >
                                 {isSaving ? 'Saving...' : 'Save'}
                               </button>
                               <button
+                                onClick={() => handleSaveAndCreateRule(transaction)}
+                                disabled={isSaving || savingRuleFor === transaction.id}
+                                className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                                title="Save changes and create a rule for future transactions"
+                              >
+                                {savingRuleFor === transaction.id ? 'Saving...' : 'Save & Rule'}
+                              </button>
+                              <button
                                 onClick={() => handleCancelEdit(transaction.id)}
-                                disabled={isSaving}
+                                disabled={isSaving || savingRuleFor === transaction.id}
                                 className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded hover:bg-gray-300 disabled:opacity-50"
                               >
                                 Cancel
@@ -802,9 +895,8 @@ export default function Transactions() {
       {transactions.length > 0 && (
         <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
           <p className="text-sm text-gray-700">
-            <strong>💡 Tip:</strong> Use the <span className="font-semibold text-blue-600">Unmapped</span> tab to categorize transactions that haven't been assigned yet.
-            Once categorized, they'll automatically move to the <span className="font-semibold text-green-600">Mapped</span> tab.
-            You can also use the <a href="/inbox" className="text-blue-600 hover:underline font-medium">Inbox</a> for a focused, one-at-a-time workflow.
+            <strong>Tip:</strong> Use the <span className="font-semibold text-blue-600">Unmapped</span> tab to categorize transactions.
+            Select category, subcategory, and member, then click <span className="font-semibold text-green-600">Save</span> or <span className="font-semibold text-blue-600">Save & Rule</span> to also create an auto-categorization rule.
           </p>
         </div>
       )}

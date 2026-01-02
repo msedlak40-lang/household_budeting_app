@@ -3,14 +3,13 @@ import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 import { useTransactions } from '@/hooks/useTransactions'
 
-const navItems = [
+const navItems: Array<{ path: string; label: string; showBadge?: boolean }> = [
   { path: '/', label: 'Dashboard' },
   { path: '/members', label: 'Members' },
   { path: '/accounts', label: 'Accounts' },
   { path: '/categories', label: 'Categories' },
   { path: '/rules', label: 'Rules' },
-  { path: '/transactions', label: 'Transactions' },
-  { path: '/inbox', label: 'Inbox', showBadge: true },
+  { path: '/transactions', label: 'Transactions', showBadge: true },
   { path: '/recurring', label: 'Recurring' },
 ]
 

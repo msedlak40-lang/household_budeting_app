@@ -8,7 +8,6 @@ import Accounts from './pages/Accounts'
 import Categories from './pages/Categories'
 import Rules from './pages/Rules'
 import Transactions from './pages/Transactions'
-import Inbox from './pages/Inbox'
 import Recurring from './pages/Recurring'
 import Analysis from './pages/Analysis'
 
@@ -30,7 +29,6 @@ function App() {
         <Route path="categories" element={<Categories />} />
         <Route path="rules" element={<Rules />} />
         <Route path="transactions" element={<Transactions />} />
-        <Route path="inbox" element={<Inbox />} />
         <Route path="recurring" element={<Recurring />} />
         <Route path="analysis" element={<Analysis />} />
       </Route>
