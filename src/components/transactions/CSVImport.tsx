@@ -22,8 +22,11 @@ export default function CSVImport() {
     date: '',
     description: '',
     amount: '',
+    debit: '',
+    credit: '',
     cardNumber: '',
   })
+  const [amountMode, setAmountMode] = useState<'single' | 'split'>('single')
   const [step, setStep] = useState<'upload' | 'map' | 'preview' | 'complete'>('upload')
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState('')
@@ -69,12 +72,25 @@ export default function CSVImport() {
           lowerHeaders[i].includes('name')
         )
 
-        // Auto-detect amount column
+        // Auto-detect amount columns
         const amountCol = fileHeaders.find((_, i) =>
-          lowerHeaders[i].includes('amount') ||
-          lowerHeaders[i].includes('debit') ||
+          lowerHeaders[i] === 'amount' ||
+          lowerHeaders[i].includes('amount')
+        )
+
+        // Auto-detect separate debit/credit columns
+        const debitCol = fileHeaders.find((_, i) =>
+          lowerHeaders[i] === 'debit' ||
+          lowerHeaders[i].includes('debit')
+        )
+        const creditCol = fileHeaders.find((_, i) =>
+          lowerHeaders[i] === 'credit' ||
           lowerHeaders[i].includes('credit')
         )
+
+        // Determine if we should use split mode (separate debit/credit columns)
+        const hasSplitColumns = debitCol && creditCol
+        setAmountMode(hasSplitColumns ? 'split' : 'single')
 
         // Auto-detect card number column
         const cardCol = fileHeaders.find((_, i) =>
@@ -87,7 +103,9 @@ export default function CSVImport() {
         setColumnMapping({
           date: dateCol || '',
           description: descCol || '',
-          amount: amountCol || '',
+          amount: hasSplitColumns ? '' : (amountCol || ''),
+          debit: debitCol || '',
+          credit: creditCol || '',
           cardNumber: cardCol || '',
         })
       },
@@ -98,8 +116,18 @@ export default function CSVImport() {
   }
 
   const handleMapColumns = () => {
-    if (!columnMapping.date || !columnMapping.description || !columnMapping.amount) {
-      setError('Please map all required columns')
+    if (!columnMapping.date || !columnMapping.description) {
+      setError('Please map Date and Description columns')
+      return
+    }
+
+    // Validate amount columns based on mode
+    if (amountMode === 'single' && !columnMapping.amount) {
+      setError('Please map the Amount column')
+      return
+    }
+    if (amountMode === 'split' && (!columnMapping.debit || !columnMapping.credit)) {
+      setError('Please map both Debit and Credit columns')
       return
     }
 
@@ -109,7 +137,6 @@ export default function CSVImport() {
 
   const parseAmount = (amountStr: string): number => {
     if (!amountStr || amountStr.trim() === '') {
-      console.warn('[CSVImport] Empty amount string, defaulting to 0')
       return 0
     }
 
@@ -133,6 +160,28 @@ export default function CSVImport() {
     }
 
     return value
+  }
+
+  // Calculate amount from row based on mode (single amount or split debit/credit)
+  const getAmountFromRow = (row: ParsedRow): number => {
+    if (amountMode === 'single') {
+      return parseAmount(row[columnMapping.amount])
+    }
+
+    // Split mode: debit is negative (expense), credit is positive (refund/income)
+    const debitValue = parseAmount(row[columnMapping.debit])
+    const creditValue = parseAmount(row[columnMapping.credit])
+
+    // If there's a debit value, it's an expense (negative)
+    // If there's a credit value, it's a refund/credit (positive)
+    if (debitValue !== 0) {
+      return -Math.abs(debitValue)  // Debits are expenses (negative)
+    }
+    if (creditValue !== 0) {
+      return Math.abs(creditValue)  // Credits are refunds (positive)
+    }
+
+    return 0
   }
 
   const parseDate = (dateStr: string): string => {
@@ -182,7 +231,7 @@ export default function CSVImport() {
         const { categoryId, memberId } = applyCategorization(description, cardNumber)
 
         const date = parseDate(row[columnMapping.date])
-        const amount = parseAmount(row[columnMapping.amount])
+        const amount = getAmountFromRow(row)
         const vendor = extractVendor(description)
         const normalized = normalizeVendor(description)
         const transactionHash = createTransactionHash(date, description, amount, selectedAccount)
@@ -224,7 +273,8 @@ export default function CSVImport() {
   const handleReset = () => {
     setCsvData([])
     setHeaders([])
-    setColumnMapping({ date: '', description: '', amount: '', cardNumber: '' })
+    setColumnMapping({ date: '', description: '', amount: '', debit: '', credit: '', cardNumber: '' })
+    setAmountMode('single')
     setStep('upload')
     setError('')
     setImportResult(null)
@@ -236,7 +286,7 @@ export default function CSVImport() {
   const previewData = csvData.slice(0, 5).map(row => ({
     date: row[columnMapping.date],
     description: row[columnMapping.description],
-    amount: row[columnMapping.amount],
+    amount: getAmountFromRow(row),
   }))
 
   return (
@@ -334,23 +384,102 @@ export default function CSVImport() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Amount Column <span className="text-red-500">*</span>
+          {/* Amount Mode Toggle */}
+          <div className="col-span-full">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Amount Format <span className="text-red-500">*</span>
             </label>
-            <select
-              value={columnMapping.amount}
-              onChange={(e) => setColumnMapping({ ...columnMapping, amount: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select column...</option>
-              {headers.map((header) => (
-                <option key={header} value={header}>
-                  {header}
-                </option>
-              ))}
-            </select>
+            <div className="flex space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="amountMode"
+                  value="single"
+                  checked={amountMode === 'single'}
+                  onChange={() => setAmountMode('single')}
+                  className="mr-2"
+                />
+                <span className="text-sm">Single Amount Column</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="amountMode"
+                  value="split"
+                  checked={amountMode === 'split'}
+                  onChange={() => setAmountMode('split')}
+                  className="mr-2"
+                />
+                <span className="text-sm">Separate Debit/Credit Columns</span>
+              </label>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              {amountMode === 'single'
+                ? 'Use this if your CSV has one amount column (negative = expense, positive = credit)'
+                : 'Use this if your CSV has separate columns for debits (purchases) and credits (returns/refunds)'}
+            </p>
           </div>
+
+          {/* Single Amount Column */}
+          {amountMode === 'single' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Amount Column <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={columnMapping.amount}
+                onChange={(e) => setColumnMapping({ ...columnMapping, amount: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select column...</option>
+                {headers.map((header) => (
+                  <option key={header} value={header}>
+                    {header}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Split Debit/Credit Columns */}
+          {amountMode === 'split' && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Debit Column (purchases) <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={columnMapping.debit}
+                  onChange={(e) => setColumnMapping({ ...columnMapping, debit: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select column...</option>
+                  {headers.map((header) => (
+                    <option key={header} value={header}>
+                      {header}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Credit Column (returns/refunds) <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={columnMapping.credit}
+                  onChange={(e) => setColumnMapping({ ...columnMapping, credit: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select column...</option>
+                  {headers.map((header) => (
+                    <option key={header} value={header}>
+                      {header}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -417,7 +546,9 @@ export default function CSVImport() {
                   <tr key={idx}>
                     <td className="px-4 py-2 text-sm">{row.date}</td>
                     <td className="px-4 py-2 text-sm">{row.description}</td>
-                    <td className="px-4 py-2 text-sm text-right">${parseAmount(row.amount).toFixed(2)}</td>
+                    <td className={`px-4 py-2 text-sm text-right ${row.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {row.amount >= 0 ? '+' : ''}${row.amount.toFixed(2)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
