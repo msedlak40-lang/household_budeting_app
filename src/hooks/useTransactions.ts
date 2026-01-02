@@ -9,6 +9,9 @@ export interface Transaction {
   description: string
   amount: number
   vendor?: string | null
+  normalized_vendor?: string | null
+  vendor_override?: string | null
+  transaction_hash?: string | null
   category_id: string | null
   member_id: string | null
   created_at: string
@@ -131,6 +134,7 @@ export function useTransactions(accountId?: string) {
       description: string
       amount: number
       vendor?: string
+      normalized_vendor?: string
       transaction_hash?: string
       category_id?: string | null
       member_id?: string | null
@@ -143,6 +147,7 @@ export function useTransactions(accountId?: string) {
         description: t.description,
         amount: t.amount,
         vendor: t.vendor || null,
+        normalized_vendor: t.normalized_vendor || null,
         transaction_hash: t.transaction_hash || null,
         category_id: t.category_id || null,
         member_id: t.member_id || null,

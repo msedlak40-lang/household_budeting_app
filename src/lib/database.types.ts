@@ -31,6 +31,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       household_members: {
         Row: {
@@ -45,7 +46,7 @@ export interface Database {
           id?: string
           household_id: string
           name: string
-          role: 'adult' | 'child'
+          role?: 'adult' | 'child'
           created_at?: string
           updated_at?: string
         }
@@ -57,6 +58,14 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "household_members_household_id_fkey"
+            columns: ["household_id"]
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       accounts: {
         Row: {
@@ -83,12 +92,21 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "accounts_household_id_fkey"
+            columns: ["household_id"]
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       categories: {
         Row: {
           id: string
           household_id: string
           name: string
+          parent_category_id: string | null
           created_at: string
           updated_at: string
         }
@@ -96,6 +114,7 @@ export interface Database {
           id?: string
           household_id: string
           name: string
+          parent_category_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -103,9 +122,24 @@ export interface Database {
           id?: string
           household_id?: string
           name?: string
+          parent_category_id?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "categories_household_id_fkey"
+            columns: ["household_id"]
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_parent_category_id_fkey"
+            columns: ["parent_category_id"]
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       transactions: {
         Row: {
@@ -114,6 +148,10 @@ export interface Database {
           date: string
           description: string
           amount: number
+          vendor: string | null
+          normalized_vendor: string | null
+          vendor_override: string | null
+          transaction_hash: string | null
           category_id: string | null
           member_id: string | null
           created_at: string
@@ -125,6 +163,10 @@ export interface Database {
           date: string
           description: string
           amount: number
+          vendor?: string | null
+          normalized_vendor?: string | null
+          vendor_override?: string | null
+          transaction_hash?: string | null
           category_id?: string | null
           member_id?: string | null
           created_at?: string
@@ -136,18 +178,42 @@ export interface Database {
           date?: string
           description?: string
           amount?: number
+          vendor?: string | null
+          normalized_vendor?: string | null
+          vendor_override?: string | null
+          transaction_hash?: string | null
           category_id?: string | null
           member_id?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_account_id_fkey"
+            columns: ["account_id"]
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_category_id_fkey"
+            columns: ["category_id"]
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_member_id_fkey"
+            columns: ["member_id"]
+            referencedRelation: "household_members"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       rules: {
         Row: {
           id: string
           household_id: string
           pattern: string
-          category_id: string
+          category_id: string | null
           member_id: string | null
           created_at: string
           updated_at: string
@@ -156,7 +222,7 @@ export interface Database {
           id?: string
           household_id: string
           pattern: string
-          category_id: string
+          category_id?: string | null
           member_id?: string | null
           created_at?: string
           updated_at?: string
@@ -165,11 +231,31 @@ export interface Database {
           id?: string
           household_id?: string
           pattern?: string
-          category_id?: string
+          category_id?: string | null
           member_id?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "rules_household_id_fkey"
+            columns: ["household_id"]
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rules_category_id_fkey"
+            columns: ["category_id"]
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rules_member_id_fkey"
+            columns: ["member_id"]
+            referencedRelation: "household_members"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       recurring_items: {
         Row: {
@@ -208,6 +294,32 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_items_household_id_fkey"
+            columns: ["household_id"]
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_items_category_id_fkey"
+            columns: ["category_id"]
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_items_member_id_fkey"
+            columns: ["member_id"]
+            referencedRelation: "household_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_items_account_id_fkey"
+            columns: ["account_id"]
+            referencedRelation: "accounts"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {
@@ -220,5 +332,14 @@ export interface Database {
       member_role: 'adult' | 'child'
       recurring_frequency: 'monthly'
     }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
+
+// Helper types for common operations
+export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
+export type TablesInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
+export type TablesUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
+export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T]
