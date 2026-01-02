@@ -10,6 +10,9 @@ import Rules from './pages/Rules'
 import Transactions from './pages/Transactions'
 import Recurring from './pages/Recurring'
 import Analysis from './pages/Analysis'
+import Budgets from './pages/Budgets'
+import BudgetDetails from './pages/BudgetDetails'
+import BudgetAnalysis from './pages/BudgetAnalysis'
 
 function App() {
   return (
@@ -31,6 +34,9 @@ function App() {
         <Route path="transactions" element={<Transactions />} />
         <Route path="recurring" element={<Recurring />} />
         <Route path="analysis" element={<Analysis />} />
+        <Route path="budgets" element={<Budgets />} />
+        <Route path="budgets/:id" element={<BudgetDetails />} />
+        <Route path="budget-analysis" element={<BudgetAnalysis />} />
       </Route>
     </Routes>
   )

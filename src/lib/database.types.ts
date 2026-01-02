@@ -321,6 +321,89 @@ export interface Database {
           }
         ]
       }
+      budget_templates: {
+        Row: {
+          id: string
+          household_id: string
+          name: string
+          month: number
+          year: number
+          lookback_months: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          household_id: string
+          name: string
+          month: number
+          year: number
+          lookback_months?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          household_id?: string
+          name?: string
+          month?: number
+          year?: number
+          lookback_months?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_templates_household_id_fkey"
+            columns: ["household_id"]
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      budget_items: {
+        Row: {
+          id: string
+          budget_template_id: string
+          category_id: string
+          budgeted_amount: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          budget_template_id: string
+          category_id: string
+          budgeted_amount: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          budget_template_id?: string
+          category_id?: string
+          budgeted_amount?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_items_budget_template_id_fkey"
+            columns: ["budget_template_id"]
+            referencedRelation: "budget_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budget_items_category_id_fkey"
+            columns: ["category_id"]
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never

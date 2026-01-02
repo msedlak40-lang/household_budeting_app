@@ -5,6 +5,7 @@ import { useAccounts } from '@/hooks/useAccounts'
 import { useMemo, useState } from 'react'
 import { isExpense, isIncome } from '@/lib/transactionUtils'
 import { getDisplayVendor } from '@/lib/vendorNormalization'
+import BudgetProgressWidget from '@/components/budgets/BudgetProgressWidget'
 
 type GroupBy = 'parent_category' | 'subcategory' | 'member' | 'vendor' | 'account'
 type ChartType = 'line' | 'bar' | 'pie'
@@ -294,6 +295,36 @@ export default function Dashboard() {
         <p className="text-gray-600 mt-1">Financial analysis and insights</p>
       </div>
 
+      {/* Budget Progress Widget */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <BudgetProgressWidget />
+        </div>
+        <div className="lg:col-span-2">
+          {/* Summary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+              <div className="text-sm text-red-600 uppercase font-medium">Total Expenses</div>
+              <div className="text-xl font-bold text-red-700 mt-1">{formatCurrency(analysisStats.expenses)}</div>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+              <div className="text-sm text-green-600 uppercase font-medium">Total Income</div>
+              <div className="text-xl font-bold text-green-700 mt-1">{formatCurrency(analysisStats.income)}</div>
+            </div>
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <div className="text-sm text-blue-600 uppercase font-medium">Net Cash Flow</div>
+              <div className={`text-xl font-bold mt-1 ${analysisStats.net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                {formatCurrency(analysisStats.net)}
+              </div>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+              <div className="text-sm text-gray-600 uppercase font-medium">Transactions</div>
+              <div className="text-xl font-bold text-gray-900 mt-1">{analysisStats.transactions}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-xl font-semibold mb-4">Custom Analysis</h2>
 
@@ -344,28 +375,6 @@ export default function Dashboard() {
                   onChange={(e) => setEndDate(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-            </div>
-
-            {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                <div className="text-sm text-red-600 uppercase font-medium">Total Expenses</div>
-                <div className="text-2xl font-bold text-red-700 mt-1">{formatCurrency(analysisStats.expenses)}</div>
-              </div>
-              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                <div className="text-sm text-green-600 uppercase font-medium">Total Income</div>
-                <div className="text-2xl font-bold text-green-700 mt-1">{formatCurrency(analysisStats.income)}</div>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <div className="text-sm text-blue-600 uppercase font-medium">Net Cash Flow</div>
-                <div className={`text-2xl font-bold mt-1 ${analysisStats.net >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                  {formatCurrency(analysisStats.net)}
-                </div>
-              </div>
-              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                <div className="text-sm text-gray-600 uppercase font-medium">Transactions</div>
-                <div className="text-2xl font-bold text-gray-900 mt-1">{analysisStats.transactions}</div>
               </div>
             </div>
 

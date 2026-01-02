@@ -5,6 +5,7 @@ import { useTransactions } from '@/hooks/useTransactions'
 
 const navItems: Array<{ path: string; label: string; showBadge?: boolean }> = [
   { path: '/', label: 'Dashboard' },
+  { path: '/budgets', label: 'Budgets' },
   { path: '/members', label: 'Members' },
   { path: '/accounts', label: 'Accounts' },
   { path: '/categories', label: 'Categories' },
