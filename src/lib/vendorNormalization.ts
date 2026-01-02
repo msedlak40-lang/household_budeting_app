@@ -26,8 +26,11 @@ const PATTERN_RULES: Array<{ pattern: RegExp; replacement: string }> = [
   // Amazon marketplace variations
   { pattern: /^AMAZON\s*MKTPL?\*[A-Z0-9]+$/i, replacement: 'Amazon' },
   { pattern: /^AMAZON\s*MKTPLACE\s*PMTS?$/i, replacement: 'Amazon' },
+  { pattern: /^AMAZON\s*RETA?\*?\s*[A-Z0-9]+$/i, replacement: 'Amazon' }, // Amazon Retail
   { pattern: /^AMZN\s*MKTP/i, replacement: 'Amazon' },
+  { pattern: /^AMZN\s*RETA?/i, replacement: 'Amazon' }, // AMZN Retail
   { pattern: /^AMAZON\.COM/i, replacement: 'Amazon' },
+  { pattern: /^AMAZON\s+/i, replacement: 'Amazon' }, // Catch-all for "AMAZON " prefix
   { pattern: /^AMAZON\s*PRIME/i, replacement: 'Amazon Prime' },
   { pattern: /^PRIME\s*VIDEO/i, replacement: 'Amazon Prime Video' },
 
@@ -72,6 +75,7 @@ const MERCHANT_RULES: Record<string, string> = {
   'WAL-MART': 'Walmart',
   'WM SUPERCENTER': 'Walmart',
   'WALMART': 'Walmart',
+  'TARGET.COM': 'Target',
   'TARGET': 'Target',
   'COSTCO': 'Costco',
   'SAMS CLUB': "Sam's Club",
