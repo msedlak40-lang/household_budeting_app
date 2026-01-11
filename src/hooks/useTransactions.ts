@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useHousehold } from './useHousehold'
+import type { Rule } from './useRules'
 
 export interface Transaction {
   id: string
@@ -47,6 +48,7 @@ export function useTransactions(accountId?: string) {
             member:household_members(id, name)
           `)
           .order('date', { ascending: false })
+          .range(0, 99999) // Use range instead of limit for better reliability (0-indexed, inclusive)
 
         // Filter by account if accountId is provided
         if (accountId) {
@@ -69,7 +71,9 @@ export function useTransactions(accountId?: string) {
           }
         }
 
-        const { data, error } = await query
+        const { data, error, count } = await query
+
+        console.log('[useTransactions] Fetched transactions:', data?.length, 'count:', count)
 
         if (error) throw error
         setTransactions(data || [])
@@ -97,6 +101,7 @@ export function useTransactions(accountId?: string) {
           member:household_members(id, name)
         `)
         .order('date', { ascending: false })
+        .range(0, 99999) // Use range instead of limit for better reliability (0-indexed, inclusive)
 
       if (accountId) {
         query = query.eq('account_id', accountId)
@@ -116,7 +121,9 @@ export function useTransactions(accountId?: string) {
         }
       }
 
-      const { data, error } = await query
+      const { data, error, count } = await query
+
+      console.log('[useTransactions] Refetched transactions:', data?.length, 'count:', count)
 
       if (error) throw error
       setTransactions(data || [])
@@ -264,6 +271,68 @@ export function useTransactions(accountId?: string) {
     }
   }
 
+  const applyRulesToUncategorized = async (rules: Rule[]) => {
+    if (!household) {
+      return { error: 'No household found', updated: 0 }
+    }
+
+    try {
+      // Get all uncategorized transactions
+      const uncategorized = transactions.filter(t => !t.category_id)
+
+      if (uncategorized.length === 0) {
+        return { error: null, updated: 0 }
+      }
+
+      let updatedCount = 0
+      const updates: Array<{ id: string; category_id: string; member_id: string | null }> = []
+
+      // For each uncategorized transaction, check if any rule matches
+      for (const transaction of uncategorized) {
+        const lowerDescription = transaction.description.toLowerCase()
+
+        for (const rule of rules) {
+          const lowerPattern = rule.pattern.toLowerCase()
+
+          if (lowerDescription.includes(lowerPattern)) {
+            updates.push({
+              id: transaction.id,
+              category_id: rule.category_id,
+              member_id: rule.member_id,
+            })
+            break // Use the first matching rule
+          }
+        }
+      }
+
+      // Apply updates
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('transactions')
+          .update({
+            category_id: update.category_id,
+            member_id: update.member_id,
+          })
+          .eq('id', update.id)
+
+        if (!error) {
+          updatedCount++
+        }
+      }
+
+      // Refresh transactions
+      await refetchTransactions()
+
+      return { error: null, updated: updatedCount }
+    } catch (err) {
+      console.error('[useTransactions] Apply rules failed:', err)
+      return {
+        error: err instanceof Error ? err.message : 'Failed to apply rules',
+        updated: 0,
+      }
+    }
+  }
+
   return {
     transactions,
     loading,
@@ -271,6 +340,7 @@ export function useTransactions(accountId?: string) {
     importTransactions,
     updateTransaction,
     deleteTransaction,
+    applyRulesToUncategorized,
     refetch: refetchTransactions,
   }
 }

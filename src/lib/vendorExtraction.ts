@@ -88,6 +88,7 @@ function toTitleCase(str: string): string {
 /**
  * Creates a hash for duplicate detection
  * Uses date, description, amount, and account
+ * Note: Amount is placed early in the string to ensure different amounts produce different hashes
  */
 export function createTransactionHash(
   date: string,
@@ -95,6 +96,8 @@ export function createTransactionHash(
   amount: number,
   accountId?: string
 ): string {
-  const normalized = `${date}|${description.trim().toLowerCase()}|${amount.toFixed(2)}|${accountId || ''}`
+  // Put amount first to ensure it affects the hash even when truncated
+  // Also include it at the end for extra differentiation
+  const normalized = `${amount.toFixed(2)}|${date}|${description.trim().toLowerCase()}|${accountId || ''}|${amount.toFixed(2)}`
   return btoa(normalized).substring(0, 40)
 }

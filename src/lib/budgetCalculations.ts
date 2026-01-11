@@ -68,6 +68,25 @@ export function calculateCategoryAverages(
   const endDate = endOfMonth(subMonths(referenceDate, 1)) // End of last month
   const startDate = startOfMonth(subMonths(endDate, lookbackMonths - 1))
 
+  console.log('[calculateCategoryAverages] Date range:', {
+    startDate: format(startDate, 'yyyy-MM-dd'),
+    endDate: format(endDate, 'yyyy-MM-dd'),
+    lookbackMonths,
+    totalTransactions: transactions.length,
+    categorizedTransactions: transactions.filter(t => t.category_id).length,
+  })
+
+  // Log sample transactions for debugging
+  transactions.slice(0, 5).forEach((t, i) => {
+    console.log(`[calculateCategoryAverages] Sample transaction ${i}:`, {
+      date: t.date,
+      amount: t.amount,
+      accountType: t.account?.account_type,
+      categoryId: t.category_id,
+      isExpense: isExpense(t),
+    })
+  })
+
   // Filter transactions to only expenses within the lookback period
   const relevantTransactions = transactions.filter(t => {
     const transactionDate = parseISO(t.date)
@@ -77,6 +96,8 @@ export function calculateCategoryAverages(
       isWithinInterval(transactionDate, { start: startDate, end: endDate })
     )
   })
+
+  console.log('[calculateCategoryAverages] Relevant transactions found:', relevantTransactions.length)
 
   // Group transactions by category and month
   const categoryMonthlyTotals = new Map<string, Map<string, number>>()

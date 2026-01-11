@@ -12,12 +12,13 @@ type TabType = 'unmapped' | 'mapped'
 
 export default function Transactions() {
   const { accounts } = useAccounts()
-  const { transactions, loading, error, updateTransaction, deleteTransaction, refetch: refetchTransactions } = useTransactions()
+  const { transactions, loading, error, updateTransaction, deleteTransaction, applyRulesToUncategorized, refetch: refetchTransactions } = useTransactions()
   const { categories, addCategory, refetch: refetchCategories, getCategoryDisplayName, getParentCategories, getSubcategories, getCategoryById } = useCategories()
   const { members } = useMembers()
-  const { addRule } = useRules()
+  const { rules, addRule } = useRules()
   const [activeTab, setActiveTab] = useState<TabType>('unmapped')
   const [showImport, setShowImport] = useState(false)
+  const [applyingRules, setApplyingRules] = useState(false)
   const [filterAccount, setFilterAccount] = useState<string>('')
   const [filterCategory, setFilterCategory] = useState<string>('')
   const [filterMember, setFilterMember] = useState<string>('')
@@ -74,6 +75,33 @@ export default function Transactions() {
       if (error) {
         alert(`Error: ${error}`)
       }
+    }
+  }
+
+  const handleApplyRules = async () => {
+    if (rules.length === 0) {
+      alert('No rules defined. Create rules first on the Rules page.')
+      return
+    }
+
+    const uncategorizedCount = transactions.filter(t => !t.category_id).length
+    if (uncategorizedCount === 0) {
+      showSaveNotification('No uncategorized transactions to process.')
+      return
+    }
+
+    setApplyingRules(true)
+    try {
+      const { error, updated } = await applyRulesToUncategorized(rules)
+      if (error) {
+        alert(`Error: ${error}`)
+      } else if (updated === 0) {
+        showSaveNotification('No transactions matched any rules.')
+      } else {
+        showSaveNotification(`Applied rules to ${updated} transaction${updated !== 1 ? 's' : ''}!`)
+      }
+    } finally {
+      setApplyingRules(false)
     }
   }
 
@@ -465,12 +493,22 @@ export default function Transactions() {
           <h1 className="text-3xl font-bold">Transactions</h1>
           <p className="text-gray-600 mt-1">Manage and categorize your transactions</p>
         </div>
-        <button
-          onClick={() => setShowImport(!showImport)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          {showImport ? 'Hide Import' : 'Import CSV'}
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={handleApplyRules}
+            disabled={applyingRules || rules.length === 0}
+            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={rules.length === 0 ? 'No rules defined - create rules first' : 'Apply all rules to uncategorized transactions'}
+          >
+            {applyingRules ? 'Applying...' : 'Apply Rules'}
+          </button>
+          <button
+            onClick={() => setShowImport(!showImport)}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            {showImport ? 'Hide Import' : 'Import CSV'}
+          </button>
+        </div>
       </div>
 
       {showImport && <CSVImport />}

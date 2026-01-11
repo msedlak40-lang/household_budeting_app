@@ -53,17 +53,18 @@ export default function BudgetWizard({ isOpen, onClose, onSuccess }: BudgetWizar
   const [budgetItems, setBudgetItems] = useState<BudgetItemInput[]>([])
   const [adjustmentPercent, setAdjustmentPercent] = useState(0)
 
-  // Calculate averages when we move to step 2
-  const categoryAverages = useMemo(() => {
-    if (step < 2) return []
-    return calculateCategoryAverages(transactions, categories, lookbackMonths)
-  }, [transactions, categories, lookbackMonths, step])
+  // Store category averages for use in step 2 and 3
+  const [categoryAverages, setCategoryAverages] = useState<ReturnType<typeof calculateCategoryAverages>>([])
 
   // Initialize budget items when moving to step 2
   const initializeBudgetItems = () => {
-    const suggestions = suggestBudgetAmounts(categoryAverages, adjustmentPercent)
+    // Calculate averages now (not memoized) to avoid race condition
+    const averages = calculateCategoryAverages(transactions, categories, lookbackMonths)
+    setCategoryAverages(averages)
 
-    const items: BudgetItemInput[] = categoryAverages.map(avg => ({
+    const suggestions = suggestBudgetAmounts(averages, adjustmentPercent)
+
+    const items: BudgetItemInput[] = averages.map(avg => ({
       categoryId: avg.categoryId,
       categoryName: avg.categoryName,
       parentCategoryName: avg.parentCategoryName,
@@ -74,7 +75,7 @@ export default function BudgetWizard({ isOpen, onClose, onSuccess }: BudgetWizar
     }))
 
     // Add categories with no spending history
-    const categoriesWithSpending = new Set(categoryAverages.map(a => a.categoryId))
+    const categoriesWithSpending = new Set(averages.map(a => a.categoryId))
     categories.forEach(cat => {
       if (!categoriesWithSpending.has(cat.id)) {
         items.push({

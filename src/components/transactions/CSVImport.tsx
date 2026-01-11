@@ -162,23 +162,32 @@ export default function CSVImport() {
     return value
   }
 
+  // Get the selected account's type to determine sign convention
+  const selectedAccountType = accounts.find(a => a.id === selectedAccount)?.account_type
+
   // Calculate amount from row based on mode (single amount or split debit/credit)
   const getAmountFromRow = (row: ParsedRow): number => {
     if (amountMode === 'single') {
       return parseAmount(row[columnMapping.amount])
     }
 
-    // Split mode: debit is negative (expense), credit is positive (refund/income)
+    // Split mode: handle debit/credit columns
     const debitValue = parseAmount(row[columnMapping.debit])
     const creditValue = parseAmount(row[columnMapping.credit])
 
-    // If there's a debit value, it's an expense (negative)
-    // If there's a credit value, it's a refund/credit (positive)
+    // For Credit Cards:
+    //   - Purchases (debit) = positive (increases what you owe = expense)
+    //   - Returns (credit) = negative (decreases what you owe = refund)
+    // For Bank Accounts:
+    //   - Withdrawals (debit) = negative (money leaving = expense)
+    //   - Deposits (credit) = positive (money coming in = income)
+    const isCreditCard = selectedAccountType === 'Credit Card'
+
     if (debitValue !== 0) {
-      return -Math.abs(debitValue)  // Debits are expenses (negative)
+      return isCreditCard ? Math.abs(debitValue) : -Math.abs(debitValue)
     }
     if (creditValue !== 0) {
-      return Math.abs(creditValue)  // Credits are refunds (positive)
+      return isCreditCard ? -Math.abs(creditValue) : Math.abs(creditValue)
     }
 
     return 0
@@ -250,6 +259,11 @@ export default function CSVImport() {
 
       console.log('[CSVImport] Importing transactions:', transactionsToImport.length)
       console.log('[CSVImport] Sample transaction:', transactionsToImport[0])
+
+      // Log all transactions with their hashes to debug duplicates
+      transactionsToImport.forEach((t, i) => {
+        console.log(`[CSVImport] Transaction ${i}: date=${t.date}, amount=${t.amount}, hash=${t.transaction_hash}, desc=${t.description.substring(0, 30)}`)
+      })
 
       const { error, count, duplicates } = await importTransactions(selectedAccount, transactionsToImport)
 
